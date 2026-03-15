@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Progress{% endblock %}
+{% block content %}
+<meta http-equiv="refresh" content="10">
+
+<h2>Pipeline Progress
+    <button onclick="restartPipeline()" class="btn btn-sm" style="background:#e74c3c;color:#fff;margin-left:1rem;padding:6px 16px;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">Restart Pipeline</button>
+</h2>
+
+<script>
+function restartPipeline() {
+    if (!confirm('Restart pipeline? Current video will be re-queued for retry.')) return;
+    fetch('/api/pipeline/restart', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            alert(data.message || 'Pipeline restarted!');
+            setTimeout(() => location.reload(), 3000);
+        })
+        .catch(e => alert('Error: ' + e));
+}
+</script>
+
+<!-- ── CURRENTLY PROCESSING ─────────────────────────────────────── -->
+<div class="card">
+    <h3>Currently Processing</h3>
+    {% set p = progress %}
+    {% set steps = [
+        "Picking topic",
+        "Generating script",
+        "Generating voiceover",
+        "Generating animation",
+        "Fetching music",
+        "Assembling video",
+        "Creating Short",
+        "Creating thumbnails",
+        "Generating SEO",
+        "Uploading to YouTube",
+        "Saving to database",
+        "Cleanup / Done"
+    ] %}
+
+    {% if p.status == "idle" %}
+        <p class="muted">No pipeline running. Waiting for next scheduled run.</p>
+    {% else %}
+        <div class="progress-topic">
+            <strong>{{ p.channel }}</strong> &mdash; {{ p.topic }}
+        </div>
+
+        {% if p.started_at %}
+        <div class="progress-time">
+            Started: {{ p.started_at[:19] }} &nbsp;|&nbsp; Last update: {{ p.updated_at[:19] }}
+        </div>
+        {% endif %}
+
+        <div class="progress-bar-container">
+            {% set pct = (p.step / p.total_steps * 100)|int %}
+            <div class="progress-bar" style="width: {{ pct }}%">{{ pct }}%</div>
+        </div>
+
+        <div class="step-list">
+            {% for step_name in steps %}
+            {% set idx = loop.index %}
+            <div class="step-item {% if idx < p.step %}done{% elif idx == p.step %}current{% else %}pending{% endif %}">
+                {% if idx < p.step %}
+                    <span class="step-icon done">&#x2705;</span>
+                {% elif idx == p.step %}
+                    <span class="step-icon current">&#x23F3;</span>
+                {% else %}
+                    <span class="step-icon pending">&#x2B1C;</span>
+                {% endif %}
+                <span class="step-label">{{ step_name }}</span>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if p.status == "done" %}
+        <div class="status-badge success">Pipeline Complete</div>
+        {% elif p.status == "partial" %}
+        <div class="status-badge warning">Partial (upload failed)</div>
+        {% endif %}
+    {% endif %}
+</div>
+
+<!-- ── TODAY'S VIDEOS ───────────────────────────────────────────── -->
+<div class="card">
+    <h3>Today's Videos</h3>
+    <div class="stats-grid four-col">
+        <div class="stat-card">
+            <div class="stat-value">{{ today.planned }}</div>
+            <div class="stat-label">Planned</div>
+        </div>
+        <div class="stat-card green">
+            <div class="stat-value">{{ today.completed }}</div>
+            <div class="stat-label">Completed</div>
+        </div>
+        <div class="stat-card blue">
+            <div class="stat-value">{{ today.in_progress }}</div>
+            <div class="stat-label">In Progress</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ today.remaining }}</div>
+            <div class="stat-label">Remaining</div>
+        </div>
+    </div>
+    <div class="progress-bar-container" style="margin-top: 1rem;">
+        <div class="progress-bar {% if today.pct >= 80 %}green{% elif today.pct >= 40 %}blue{% endif %}" style="width: {{ today.pct }}%">{{ today.completed }}/{{ today.planned }} ({{ today.pct }}%)</div>
+    </div>
+</div>
+
+<!-- ── ALL TIME STATS ───────────────────────────────────────────── -->
+<div class="card">
+    <h3>All Time Stats</h3>
+    <div class="stats-grid four-col">
+        <div class="stat-card">
+            <div class="stat-value">{{ all_time.total }}</div>
+            <div class="stat-label">Total Created</div>
+        </div>
+        <div class="stat-card green">
+            <div class="stat-value">{{ all_time.uploaded }}</div>
+            <div class="stat-label">Uploaded</div>
+        </div>
+        <div class="stat-card red">
+            <div class="stat-value">{{ all_time.failed }}</div>
+            <div class="stat-label">Failed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ all_time.success_rate }}%</div>
+            <div class="stat-label">Success Rate</div>
+        </div>
+    </div>
+</div>
+
+<!-- ── LIVE LOG ─────────────────────────────────────────────────── -->
+<div class="card">
+    <h3>Live Pipeline Log <span class="muted">(last 20 lines, auto-refresh 10s)</span></h3>
+    <div class="log-viewer">
+        {% for line in log_lines %}
+        <div class="log-line {% if 'ERROR' in line %}error{% elif 'WARNING' in line %}warn{% elif 'SUCCESS' in line or 'PIPELINE' in line %}highlight{% endif %}">{{ line }}</div>
+        {% endfor %}
+        {% if not log_lines %}
+        <div class="log-line muted">No log entries yet.</div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

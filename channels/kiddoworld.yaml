@@ -1,0 +1,73 @@
+channel:
+  name: "KiddoWorld"
+  language: "english"
+  secondary_languages:
+    - hindi
+    - spanish
+  region: "GLOBAL"
+  target_audience: "kids_2_8"
+  niche: "kids_educational_entertainment"
+  sub_niches:
+    - nursery_rhymes
+    - bedtime_stories
+    - educational_abc_123
+    - cartoon_stories
+    - colors_shapes_animals
+
+content:
+  long_form_per_day: 2
+  shorts_per_day: 3
+  min_duration_mins: 3
+  max_duration_mins: 8
+  tone: "cheerful, simple, repetitive, engaging"
+  visual_style: "cartoon_animation"
+  script_styles:
+    - song_rhyme
+    - story_narrative
+    - educational_lesson
+
+trends:
+  sources:
+    - google_trends
+    - youtube_kids_trending
+  regions: ["US", "GB", "AU", "CA", "IN"]
+  keywords:
+    - nursery rhymes
+    - kids songs
+    - abc for kids
+    - bedtime stories
+    - cartoon for kids
+    - learning videos
+
+schedule:
+  long_form_times: ["10:00", "16:00"]
+  shorts_times: ["09:00", "13:00", "19:00"]
+  timezone: "America/New_York"
+  pipeline_interval_hours: 8
+
+seo:
+  title_language: "english"
+  title_style: "kids_friendly"
+  default_tags:
+    - "#KidsVideo"
+    - "#NurseryRhymes"
+    - "#KidsSongs"
+    - "#ChildrensContent"
+    - "#KiddoWorld"
+    - "#LearnWithMe"
+    - "#KidsEducation"
+    - "#CartoonForKids"
+
+music:
+  source: "pixabay"
+  style: "kids_happy_cheerful"
+  volume: 0.20
+
+animation:
+  provider: "fal_ai"
+  style: "cartoon_2d_colorful"
+  clip_duration_seconds: 5
+  clips_per_video: 20
+
+alerts:
+  email: "abasit.tlg@gmail.com"

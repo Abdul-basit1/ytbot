@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Analytics{% endblock %}
+{% block content %}
+<h2>Analytics &amp; Intelligence</h2>
+
+<!-- Strategy -->
+{% if strategy %}
+<div class="card">
+    <h3>Current Strategy</h3>
+    <div class="strategy-grid">
+        <div class="strategy-item">
+            <span class="strategy-label">Best Upload Time</span>
+            <span class="strategy-value">{{ strategy.best_upload_time or 'N/A' }} PKT</span>
+        </div>
+        <div class="strategy-item">
+            <span class="strategy-label">Best Video Length</span>
+            <span class="strategy-value">{{ strategy.best_video_length or 'N/A' }} min</span>
+        </div>
+        <div class="strategy-item">
+            <span class="strategy-label">Best Niche</span>
+            <span class="strategy-value">{{ strategy.best_niche or 'N/A' }}</span>
+        </div>
+        <div class="strategy-item">
+            <span class="strategy-label">Avg Views</span>
+            <span class="strategy-value">{{ strategy.avg_views|fnum }}</span>
+        </div>
+        <div class="strategy-item">
+            <span class="strategy-label">Avg CTR</span>
+            <span class="strategy-value">{{ strategy.avg_ctr|fpct }}</span>
+        </div>
+        <div class="strategy-item">
+            <span class="strategy-label">Avg Watch Time</span>
+            <span class="strategy-value">{{ strategy.avg_watch_time_pct|fpct }}</span>
+        </div>
+    </div>
+    {% if strategy.recommendation_notes %}
+    <div class="recommendations">
+        <h4>Intelligence Recommendations</h4>
+        {% for line in strategy.recommendation_notes.split('\n') %}
+        {% if line.strip() %}
+        <p class="rec-item">{{ line }}</p>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% if strategy.top_performing_keywords %}
+    <div class="keywords">
+        <h4>Top Performing Keywords</h4>
+        {% for kw in strategy.top_performing_keywords %}
+        <span class="tag">{{ kw }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+    <p class="text-muted">Last updated: {{ strategy.last_updated or 'Never' }}</p>
+</div>
+{% else %}
+<div class="card">
+    <div class="empty-state">No strategy data yet. The intelligence engine needs at least 3 uploaded videos to start learning.</div>
+</div>
+{% endif %}
+
+<!-- Top videos -->
+{% if top_videos %}
+<div class="card">
+    <h3>Top Performing Videos</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Views</th>
+                <th>Likes</th>
+                <th>Impressions</th>
+                <th>CTR</th>
+                <th>Retention</th>
+                <th>Subs Gained</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for v in top_videos %}
+            <tr>
+                <td>
+                    {% if v.youtube_url %}
+                    <a href="{{ v.youtube_url }}" target="_blank">{{ v.title[:45] }}{% if v.title and v.title|length > 45 %}...{% endif %}</a>
+                    {% else %}
+                    {{ (v.title or 'Untitled')[:45] }}
+                    {% endif %}
+                </td>
+                <td>{{ v.views|fnum }}</td>
+                <td>{{ v.likes|fnum }}</td>
+                <td>{{ v.impressions|fnum }}</td>
+                <td>{{ v.ctr|fpct }}</td>
+                <td>{{ v.avg_view_percentage|fpct }}</td>
+                <td>+{{ v.subscribers_gained|fnum }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Daily history -->
+{% if history %}
+<div class="card">
+    <h3>Daily History</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Views</th>
+                <th>Subscribers</th>
+                <th>Watch Time (hrs)</th>
+                <th>Videos Published</th>
+                <th>Revenue</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for h in history %}
+            <tr>
+                <td>{{ h.date }}</td>
+                <td>{{ h.total_views|fnum }}</td>
+                <td>{{ h.subscribers|fnum }}</td>
+                <td>{{ '%.1f' % (h.watch_time_hours or 0) }}</td>
+                <td>{{ h.videos_published }}</td>
+                <td>${{ '%.2f' % (h.revenue_usd or 0) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if not strategy and not top_videos and not history %}
+<div class="empty-state">No analytics data yet. Upload videos and run the intelligence engine to see insights here.</div>
+{% endif %}
+{% endblock %}

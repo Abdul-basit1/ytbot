@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Videos{% endblock %}
+{% block content %}
+<h2>All Videos</h2>
+<p class="subtitle">{{ videos|length }} videos</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Title</th>
+            <th>Status</th>
+            <th>Format</th>
+            <th>Duration</th>
+            <th>Views</th>
+            <th>Cost</th>
+            <th>Date</th>
+            <th>Preview</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for v in videos %}
+        <tr id="row-{{ v.id }}">
+            <td>{{ v.id }}</td>
+            <td>
+                {% if v.youtube_url %}
+                <a href="{{ v.youtube_url }}" target="_blank">{{ v.title[:45] }}{% if v.title and v.title|length > 45 %}...{% endif %}</a>
+                {% else %}
+                {{ (v.title or 'Untitled')[:45] }}
+                {% endif %}
+            </td>
+            <td><span class="badge badge--{{ v.status }}" id="status-{{ v.id }}">{{ v.status }}</span></td>
+            <td>{{ v.format }}</td>
+            <td>{% if v.duration_seconds %}{{ (v.duration_seconds // 60) }}:{{ '%02d' % (v.duration_seconds % 60) }}{% else %}—{% endif %}</td>
+            <td>{{ (v.views or 0)|fnum }}</td>
+            <td>${{ '%.3f' % (v.cost_usd or 0) }}</td>
+            <td>{{ v.created_at[:16] if v.created_at else '—' }}</td>
+            <td>
+                {% if v.video_path %}
+                <button class="btn-sm btn-preview" onclick="previewVideo({{ v.id }})">Preview</button>
+                {% elif v.youtube_url %}
+                <a href="{{ v.youtube_url }}" target="_blank" class="btn-sm btn-yt">YouTube</a>
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if v.status in ('failed', 'upload_failed') %}
+                <button class="btn-sm btn-retry" onclick="retryVideo({{ v.id }})">Retry</button>
+                {% elif v.status == 'retry' %}
+                <span class="badge badge--retry">Queued</span>
+                {% elif v.status == 'uploaded' %}
+                <span class="text-muted">Done</span>
+                {% elif v.status == 'generating' %}
+                <span class="text-muted">Running...</span>
+                {% else %}
+                —
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if not videos %}
+<div class="empty-state">No videos yet. Run the pipeline to generate your first video.</div>
+{% endif %}
+
+<!-- Video Preview Modal -->
+<div id="videoModal" class="modal" style="display:none" onclick="if(event.target===this)closeModal()">
+    <div class="modal-content">
+        <span class="modal-close" onclick="closeModal()">x</span>
+        <video id="previewPlayer" controls width="100%">
+            <source id="videoSource" src="" type="video/mp4">
+        </video>
+    </div>
+</div>
+
+<script>
+function previewVideo(videoId) {
+    fetch('/api/videos/' + videoId + '/preview')
+        .then(r => r.json())
+        .then(data => {
+            if (data.available) {
+                document.getElementById('videoSource').src = data.url;
+                document.getElementById('previewPlayer').load();
+                document.getElementById('videoModal').style.display = 'flex';
+            } else if (data.youtube_url) {
+                window.open(data.youtube_url, '_blank');
+            }
+        });
+}
+
+function closeModal() {
+    document.getElementById('videoModal').style.display = 'none';
+    document.getElementById('previewPlayer').pause();
+}
+
+function retryVideo(videoId) {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Retrying...';
+    fetch('/api/videos/' + videoId + '/retry', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'queued') {
+                const badge = document.getElementById('status-' + videoId);
+                if (badge) { badge.textContent = 'retry'; badge.className = 'badge badge--retry'; }
+                btn.textContent = 'Queued';
+            } else {
+                btn.textContent = 'Error';
+                btn.disabled = false;
+            }
+        })
+        .catch(() => { btn.textContent = 'Error'; btn.disabled = false; });
+}
+</script>
+{% endblock %}

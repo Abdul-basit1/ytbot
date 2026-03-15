@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block content %}
+<h2>Dashboard</h2>
+<p class="subtitle">Channel overview &mdash; {{ now.strftime('%d %b %Y, %H:%M') }}</p>
+
+<!-- Stat cards -->
+<div class="stat-grid">
+    <div class="stat-card">
+        <span class="stat-value">{{ stats.total_uploads|fnum }}</span>
+        <span class="stat-label">Videos Uploaded</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">{{ stats.total_views|fnum }}</span>
+        <span class="stat-label">Total Views</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">{{ stats.total_likes|fnum }}</span>
+        <span class="stat-label">Total Likes</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">${{ stats.total_cost }}</span>
+        <span class="stat-label">API Cost</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">{{ stats.videos_today }}</span>
+        <span class="stat-label">Videos Today</span>
+    </div>
+    <div class="stat-card {% if stats.open_errors > 0 %}stat-card--danger{% endif %}">
+        <span class="stat-value">{{ stats.open_errors }}</span>
+        <span class="stat-label">Open Errors</span>
+    </div>
+</div>
+
+<!-- Monthly Cost Breakdown -->
+{% if costs and costs.total_month > 0 %}
+<div class="card">
+    <h3>Monthly Cost Breakdown</h3>
+    <div class="strategy-grid">
+        {% for service, amount in costs.services.items() %}
+        <div class="strategy-item">
+            <span class="strategy-label">{{ service }}</span>
+            <span class="strategy-value">${{ '%.4f' % amount }}</span>
+        </div>
+        {% endfor %}
+        <div class="strategy-item">
+            <span class="strategy-label">Total (30 days)</span>
+            <span class="strategy-value">${{ '%.4f' % costs.total_month }}</span>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Strategy -->
+{% if strategy %}
+<div class="card">
+    <h3>Intelligence Strategy</h3>
+    <div class="strategy-grid">
+        <div class="strategy-item">
+            <span class="strategy-label">Best Upload Time</span>
+            <span class="strategy-value">{{ strategy.best_upload_time or 'N/A' }} PKT</span>
+        </div>
+        <div class="strategy-item">
+            <span class="strategy-label">Best Video Length</span>
+            <span class="strategy-value">{{ strategy.best_video_length or 'N/A' }} min</span>
+        </div>
+        <div class="strategy-item">
+            <span class="strategy-label">Best Niche</span>
+            <span class="strategy-value">{{ strategy.best_niche or 'N/A' }}</span>
+        </div>
+        <div class="strategy-item">
+            <span class="strategy-label">Avg CTR</span>
+            <span class="strategy-value">{{ strategy.avg_ctr|fpct }}</span>
+        </div>
+        <div class="strategy-item">
+            <span class="strategy-label">Avg Watch Time</span>
+            <span class="strategy-value">{{ strategy.avg_watch_time_pct|fpct }}</span>
+        </div>
+        <div class="strategy-item">
+            <span class="strategy-label">Thumbnail Style</span>
+            <span class="strategy-value">{{ strategy.best_thumbnail_style or 'N/A' }}</span>
+        </div>
+    </div>
+    {% if strategy.top_performing_keywords %}
+    <div class="keywords">
+        <span class="strategy-label">Top Keywords:</span>
+        {% for kw in strategy.top_performing_keywords[:10] %}
+        <span class="tag">{{ kw }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% if strategy.recommendation_notes %}
+    <div class="recommendations">
+        <h4>Recommendations</h4>
+        {% for line in strategy.recommendation_notes.split('\n') %}
+        {% if line.strip() %}
+        <p class="rec-item">{{ line }}</p>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Top videos -->
+{% if top_videos %}
+<div class="card">
+    <h3>Top Performing Videos</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Views</th>
+                <th>Likes</th>
+                <th>CTR</th>
+                <th>Retention</th>
+                <th>Subs Gained</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for v in top_videos %}
+            <tr>
+                <td>
+                    {% if v.youtube_url %}
+                    <a href="{{ v.youtube_url }}" target="_blank">{{ v.title[:50] }}{% if v.title|length > 50 %}...{% endif %}</a>
+                    {% else %}
+                    {{ v.title[:50] }}{% if v.title and v.title|length > 50 %}...{% endif %}
+                    {% endif %}
+                </td>
+                <td>{{ v.views|fnum }}</td>
+                <td>{{ v.likes|fnum }}</td>
+                <td>{{ v.ctr|fpct }}</td>
+                <td>{{ v.avg_view_percentage|fpct }}</td>
+                <td>+{{ v.subscribers_gained|fnum }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Recent videos -->
+<div class="card">
+    <h3>Recent Videos</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Status</th>
+                <th>Format</th>
+                <th>Duration</th>
+                <th>Views</th>
+                <th>Cost</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for v in videos[:10] %}
+            <tr>
+                <td>
+                    {% if v.youtube_url %}
+                    <a href="{{ v.youtube_url }}" target="_blank">{{ v.title[:45] }}{% if v.title and v.title|length > 45 %}...{% endif %}</a>
+                    {% else %}
+                    {{ (v.title or 'Untitled')[:45] }}
+                    {% endif %}
+                </td>
+                <td><span class="badge badge--{{ v.status }}">{{ v.status }}</span></td>
+                <td>{{ v.format }}</td>
+                <td>{% if v.duration_seconds %}{{ (v.duration_seconds // 60) }}:{{ '%02d' % (v.duration_seconds % 60) }}{% else %}—{% endif %}</td>
+                <td>{{ (v.views or 0)|fnum }}</td>
+                <td>${{ '%.3f' % (v.cost_usd or 0) }}</td>
+                <td>{{ v.created_at[:16] if v.created_at else '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if videos|length > 10 %}
+    <a href="/videos?channel={{ active_channel_id }}" class="view-all">View all videos &rarr;</a>
+    {% endif %}
+</div>
+
+<!-- Errors -->
+{% if errors %}
+<div class="card">
+    <h3>Recent Errors</h3>
+    <table>
+        <thead>
+            <tr><th>Type</th><th>Message</th><th>Time</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+            {% for e in errors %}
+            <tr>
+                <td><span class="badge badge--failed">{{ e.error_type }}</span></td>
+                <td>{{ e.error_message[:80] }}{% if e.error_message and e.error_message|length > 80 %}...{% endif %}</td>
+                <td>{{ e.created_at[:16] if e.created_at else '—' }}</td>
+                <td>
+                    {% if not e.resolved %}
+                    <button class="btn-sm" onclick="resolveError({{ e.id }})">Resolve</button>
+                    {% else %}
+                    <span class="text-muted">Resolved</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<script>
+async function resolveError(id) {
+    await fetch(`/api/errors/${id}/resolve`, {method:'POST'});
+    location.reload();
+}
+</script>
+{% endblock %}

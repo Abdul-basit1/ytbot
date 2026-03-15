@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Gallery{% endblock %}
+{% block content %}
+
+<h2>Media Gallery</h2>
+
+<!-- Tab buttons -->
+<div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;">
+    <button onclick="showTab('images')" id="btn-images" class="btn-sm btn-green">Images ({{ images|length }})</button>
+    <button onclick="showTab('clips')" id="btn-clips" class="btn-sm btn-orange">Animation Clips ({{ clips|length }})</button>
+    <button onclick="showTab('videos')" id="btn-videos" class="btn-sm" style="background:#6C5CE7;color:#fff;">Assembled Videos ({{ assembled|length }})</button>
+    <button onclick="showTab('audio')" id="btn-audio" class="btn-sm" style="background:#00B894;color:#fff;">Audio ({{ audio|length }})</button>
+    <button onclick="showTab('music')" id="btn-music" class="btn-sm" style="background:#E17055;color:#fff;">Music ({{ music|length }})</button>
+</div>
+
+<!-- IMAGES TAB -->
+<div id="tab-images" class="card">
+    <h3>DALL-E 3 Generated Images</h3>
+    {% if images %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin-top:1rem;">
+        {% for img in images %}
+        <div style="background:#1e1e2e;border-radius:8px;overflow:hidden;">
+            <img src="/output/images/{{ img.name }}"
+                 style="width:100%;height:180px;object-fit:cover;cursor:pointer;"
+                 onclick="openPreview('/output/images/{{ img.name }}', 'image')"
+                 loading="lazy">
+            <div style="padding:0.5rem;font-size:0.8rem;">
+                <div style="color:#ccc;">{{ img.name }}</div>
+                <div class="text-muted">{{ img.size_kb }} KB &middot; {{ img.date }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted">No images generated yet.</p>
+    {% endif %}
+</div>
+
+<!-- ANIMATION CLIPS TAB -->
+<div id="tab-clips" class="card" style="display:none;">
+    <h3>fal.ai Animation Clips</h3>
+    {% if clips %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem;margin-top:1rem;">
+        {% for clip in clips %}
+        <div style="background:#1e1e2e;border-radius:8px;overflow:hidden;">
+            <video src="/output/animation/{{ clip.name }}"
+                   style="width:100%;height:180px;object-fit:cover;cursor:pointer;"
+                   onclick="openPreview('/output/animation/{{ clip.name }}', 'video')"
+                   muted preload="metadata"></video>
+            <div style="padding:0.5rem;font-size:0.8rem;">
+                <div style="color:#ccc;">{{ clip.name }}</div>
+                <div class="text-muted">{{ clip.size_mb }} MB &middot; {{ clip.date }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted">No animation clips found.</p>
+    {% endif %}
+</div>
+
+<!-- ASSEMBLED VIDEOS TAB -->
+<div id="tab-videos" class="card" style="display:none;">
+    <h3>Assembled Videos</h3>
+    {% if assembled %}
+    <table>
+        <thead><tr><th>File</th><th>Size</th><th>Date</th><th>Action</th></tr></thead>
+        <tbody>
+        {% for v in assembled %}
+        <tr>
+            <td>{{ v.name }}</td>
+            <td>{{ v.size_mb }} MB</td>
+            <td>{{ v.date }}</td>
+            <td>
+                <button onclick="openPreview('/output/videos/{{ v.name }}', 'video')" class="btn-sm btn-green">Play</button>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted">No assembled videos found.</p>
+    {% endif %}
+</div>
+
+<!-- AUDIO TAB -->
+<div id="tab-audio" class="card" style="display:none;">
+    <h3>Voice Audio Files</h3>
+    {% if audio %}
+    <table>
+        <thead><tr><th>File</th><th>Size</th><th>Date</th><th>Action</th></tr></thead>
+        <tbody>
+        {% for a in audio %}
+        <tr>
+            <td>{{ a.name }}</td>
+            <td>{{ a.size_kb }} KB</td>
+            <td>{{ a.date }}</td>
+            <td>
+                <button onclick="openPreview('/output/audio/{{ a.name }}', 'audio')" class="btn-sm btn-green">Play</button>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted">No audio files found.</p>
+    {% endif %}
+</div>
+
+<!-- MUSIC TAB -->
+<div id="tab-music" class="card" style="display:none;">
+    <h3>Background Music Library</h3>
+    {% if music %}
+    <table>
+        <thead><tr><th>Track</th><th>Size</th><th>Action</th></tr></thead>
+        <tbody>
+        {% for m in music %}
+        <tr>
+            <td>{{ m.name }}</td>
+            <td>{{ m.size_kb }} KB</td>
+            <td>
+                <button onclick="openPreview('/assets/music/kids/{{ m.name }}', 'audio')" class="btn-sm btn-green">Play</button>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted">No music tracks found.</p>
+    {% endif %}
+</div>
+
+<!-- Preview Modal -->
+<div id="previewModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:1000;justify-content:center;align-items:center;">
+    <div style="position:relative;max-width:900px;width:90%;max-height:90vh;">
+        <button onclick="closePreview()" style="position:absolute;top:-40px;right:0;background:none;border:none;color:#fff;font-size:2rem;cursor:pointer;">&#x2715;</button>
+        <div id="previewContent"></div>
+    </div>
+</div>
+
+<script>
+function showTab(tab) {
+    document.querySelectorAll('[id^="tab-"]').forEach(el => el.style.display = 'none');
+    document.getElementById('tab-' + tab).style.display = 'block';
+    document.querySelectorAll('[id^="btn-"]').forEach(el => el.style.opacity = '0.6');
+    document.getElementById('btn-' + tab).style.opacity = '1';
+}
+
+function openPreview(url, type) {
+    var html = '';
+    if (type === 'video') {
+        html = '<video src="' + url + '" controls autoplay style="width:100%;border-radius:8px;"></video>';
+    } else if (type === 'audio') {
+        html = '<audio src="' + url + '" controls autoplay style="width:100%;margin-top:40vh;"></audio>';
+    } else {
+        html = '<img src="' + url + '" style="width:100%;border-radius:8px;">';
+    }
+    document.getElementById('previewContent').innerHTML = html;
+    document.getElementById('previewModal').style.display = 'flex';
+}
+
+function closePreview() {
+    document.getElementById('previewModal').style.display = 'none';
+    document.getElementById('previewContent').innerHTML = '';
+}
+
+document.getElementById('previewModal').addEventListener('click', function(e) {
+    if (e.target === this) closePreview();
+});
+</script>
+
+{% endblock %}

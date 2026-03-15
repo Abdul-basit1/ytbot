@@ -1,0 +1,56 @@
+channel:
+  name: "UpperCut"
+  active: false
+  language: "urdu"
+  region: "PK"
+  target_audience: "Pakistan and India"
+  niche: "general_trending"
+  sub_niches:
+    - geopolitics
+    - cricket
+    - bollywood
+    - celebrity_biography
+    - viral_news
+    - sports
+
+content:
+  long_form_per_day: 1
+  shorts_per_day: 2
+  min_duration_mins: 8
+  max_duration_mins: 12
+  tone: "engaging, emotional, conversational"
+  script_styles:
+    - news_anchor
+    - story_narrative
+    - debate
+
+trends:
+  regions: ["PK", "IN"]
+  sources:
+    - google_trends
+    - rss_feeds
+  rss_feeds:
+    - https://www.dawn.com/feeds/home
+    - https://www.geo.tv/rss
+    - https://feeds.bbci.co.uk/urdu/rss.xml
+    - https://timesofindia.indiatimes.com/rssfeedstopstories.cms
+
+schedule:
+  long_form_time: "18:00"
+  shorts_times: ["09:00", "14:00", "20:00"]
+  timezone: "Asia/Karachi"
+  pipeline_interval_hours: 6
+
+seo:
+  title_language: "urdu"
+  description_mix: "urdu_english"
+  default_tags:
+    - "#Pakistan"
+    - "#India"
+    - "#Urdu"
+    - "#UrduNews"
+    - "#Trending"
+
+alerts:
+  email: "abasit.tlg@gmail.com"
+  low_balance_threshold_usd: 2.0

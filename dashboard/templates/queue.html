@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Queue{% endblock %}
+{% block content %}
+<meta http-equiv="refresh" content="10">
+
+<h2>Video Queue</h2>
+
+<div class="queue-controls">
+    {% if paused %}
+    <button class="btn-sm btn-green" onclick="fetch('/api/queue/resume',{method:'POST'}).then(()=>location.reload())">Resume Queue</button>
+    <span class="badge badge--failed">PAUSED</span>
+    {% else %}
+    <button class="btn-sm btn-orange" onclick="fetch('/api/queue/pause',{method:'POST'}).then(()=>location.reload())">Pause Queue</button>
+    <span class="badge badge--uploaded">RUNNING</span>
+    {% endif %}
+    <button class="btn-sm" style="background:#e74c3c;color:#fff;margin-left:0.5rem;" onclick="restartPipeline()">Restart Pipeline</button>
+</div>
+
+<script>
+function restartPipeline() {
+    if (!confirm('Restart pipeline? Current video will be re-queued for retry.')) return;
+    fetch('/api/pipeline/restart', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            alert(data.message || 'Pipeline restarted!');
+            setTimeout(() => location.reload(), 3000);
+        })
+        .catch(e => alert('Error: ' + e));
+}
+</script>
+
+<!-- Currently Processing -->
+<div class="card">
+    <h3>Currently Processing</h3>
+    {% if processing %}
+    {% for item in processing %}
+    <div class="queue-item processing">
+        <span class="queue-topic">{{ item.topic }}</span>
+        <span class="badge badge--generating">processing</span>
+        <span class="text-muted">Started: {{ item.started_at[:16] if item.started_at else '—' }}</span>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="text-muted">No video currently processing.</p>
+    {% endif %}
+</div>
+
+<!-- Waiting -->
+<div class="card">
+    <h3>Waiting in Queue ({{ waiting|length }})</h3>
+    {% if waiting %}
+    <table>
+        <thead><tr><th>Position</th><th>Topic</th><th>Format</th><th>Type</th><th>Queued</th><th>Action</th></tr></thead>
+        <tbody>
+        {% for item in waiting %}
+        <tr>
+            <td><strong>{{ loop.index }}</strong></td>
+            <td>{{ item.topic[:50] }}</td>
+            <td>{{ item.format }}</td>
+            <td>
+                {% if item.priority >= 8 %}
+                <span class="badge badge--failed">Retry</span>
+                {% elif item.priority >= 5 %}
+                <span class="badge badge--uploaded">New</span>
+                {% else %}
+                <span class="badge" style="background:#666">Low</span>
+                {% endif %}
+            </td>
+            <td>{{ item.created_at[:16] if item.created_at else '—' }}</td>
+            <td><button class="btn-sm btn-red" onclick="fetch('/api/queue/{{ item.id }}',{method:'DELETE'}).then(()=>location.reload())">Remove</button></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted">Queue empty. Videos are added automatically by the scheduler.</p>
+    {% endif %}
+</div>
+
+<!-- Completed Today -->
+<div class="card">
+    <h3>Completed Today ({{ completed|length }})</h3>
+    {% if completed %}
+    <table>
+        <thead><tr><th>Topic</th><th>Status</th><th>Completed</th></tr></thead>
+        <tbody>
+        {% for item in completed %}
+        <tr>
+            <td>{{ item.topic[:50] }}</td>
+            <td><span class="badge badge--uploaded">{{ item.status }}</span></td>
+            <td>{{ item.completed_at[:16] if item.completed_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted">No completed videos today.</p>
+    {% endif %}
+</div>
+
+<!-- Failed Today -->
+{% if failed %}
+<div class="card">
+    <h3>Failed Today ({{ failed|length }})</h3>
+    <table>
+        <thead><tr><th>Topic</th><th>Retries</th><th>Action</th></tr></thead>
+        <tbody>
+        {% for item in failed %}
+        <tr>
+            <td>{{ item.topic[:50] }}</td>
+            <td>{{ item.retry_count }}/3</td>
+            <td>
+                {% if item.retry_count < 3 %}
+                <button class="btn-sm btn-retry" onclick="fetch('/api/queue/{{ item.id }}/requeue',{method:'POST'}).then(()=>location.reload())">Requeue</button>
+                {% else %}
+                <span class="text-muted">Max retries</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% endblock %}

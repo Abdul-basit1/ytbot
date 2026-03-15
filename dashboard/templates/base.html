@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}UpperCut{% endblock %} — Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="logo">
+            <h1>UpperCut</h1>
+            <span class="tagline">YouTube Automation</span>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/?channel={{ active_channel_id }}" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a></li>
+            <li><a href="/progress?channel={{ active_channel_id }}" class="{% if request.url.path == '/progress' %}active{% endif %}">Progress</a></li>
+            <li><a href="/queue?channel={{ active_channel_id }}" class="{% if request.url.path == '/queue' %}active{% endif %}">Queue</a></li>
+            <li><a href="/videos?channel={{ active_channel_id }}" class="{% if request.url.path == '/videos' %}active{% endif %}">Videos</a></li>
+            <li><a href="/analytics?channel={{ active_channel_id }}" class="{% if request.url.path == '/analytics' %}active{% endif %}">Analytics</a></li>
+            <li><a href="/errors?channel={{ active_channel_id }}" class="{% if request.url.path == '/errors' %}active{% endif %}">Errors</a></li>
+            <li><a href="/gallery" class="{% if request.url.path == '/gallery' %}active{% endif %}">Gallery</a></li>
+        </ul>
+        {% if channels|length > 1 %}
+        <div class="channel-switcher">
+            <label>Channel</label>
+            <select onchange="window.location.href='{{ request.url.path }}?channel='+this.value">
+                {% for ch in channels %}
+                <option value="{{ ch.id }}" {% if ch.id == active_channel_id %}selected{% endif %}>{{ ch.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+    </nav>
+    <main class="content">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

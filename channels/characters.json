@@ -1,0 +1,50 @@
+{
+  "channel": "KiddoWorld",
+  "art_style": "3D Pixar-style cartoon animation, bright vibrant colors, soft lighting, rounded features, expressive eyes, child-friendly, clean simple backgrounds, no text in image",
+  "characters": [
+    {
+      "id": "sid",
+      "name": "Sid",
+      "role": "main_character",
+      "age": "5-6 years old",
+      "personality": "curious, imaginative, kind, brave, big dreamer",
+      "appearance": "a small boy with short brown curly hair, big round brown eyes, light skin, wearing a bright blue t-shirt with a yellow star on the chest, orange shorts, and small white sneakers. He has rosy cheeks and a big warm smile.",
+      "visual_prompt": "Sid, a 5-year-old boy with short brown curly hair, big round brown eyes, rosy cheeks, wearing a bright blue t-shirt with a yellow star, orange shorts, white sneakers"
+    },
+    {
+      "id": "mom",
+      "name": "Mom",
+      "role": "supporting_character",
+      "age": "30s",
+      "personality": "loving, patient, wise, warm, encouraging",
+      "appearance": "a kind-looking woman with long wavy dark brown hair, warm brown eyes, wearing a soft pink top and light blue jeans. She has a gentle smile and a calming presence.",
+      "visual_prompt": "Mom, a kind woman with long wavy dark brown hair, warm brown eyes, gentle smile, wearing a soft pink top and light blue jeans"
+    },
+    {
+      "id": "dad",
+      "name": "Dad",
+      "role": "supporting_character",
+      "age": "30s",
+      "personality": "calm, thoughtful, funny, wise, great problem solver",
+      "appearance": "a friendly-looking man with short neat black hair, brown eyes, a short beard, wearing a green polo shirt and khaki pants. He has a warm confident smile.",
+      "visual_prompt": "Dad, a friendly man with short neat black hair, brown eyes, short beard, warm smile, wearing a green polo shirt and khaki pants"
+    },
+    {
+      "id": "kido",
+      "name": "Kido",
+      "role": "supporting_character",
+      "age": "2-3 years old",
+      "personality": "energetic, playful, mischievous, cheerful, looks up to Sid",
+      "appearance": "a tiny toddler with fluffy light brown hair, big round green eyes, chubby cheeks, wearing a red onesie with a little dinosaur print on it, and tiny yellow socks. Always has an excited expression.",
+      "visual_prompt": "Kido, a tiny toddler with fluffy light brown hair, big round green eyes, chubby cheeks, wearing a red onesie with a dinosaur print, tiny yellow socks, excited expression"
+    }
+  ],
+  "scene_rules": {
+    "always_include": "At least Sid must appear in every scene. Other family members appear based on the scene context.",
+    "home_setting": "A bright colorful cartoon house with a large living room, yellow walls, big windows with sunlight, toy shelf, colorful rug on the floor",
+    "outdoor_setting": "A sunny cartoon park with green grass, blue sky, fluffy white clouds, colorful flowers, a big oak tree, playground in the background",
+    "classroom_setting": "A bright cartoon classroom with a green chalkboard, colorful alphabet poster on wall, small wooden desks, rainbow carpet on floor",
+    "camera": "front-facing steady shot, eye level with the children, no camera movement, no zooming",
+    "style_suffix": "3D Pixar-style cartoon, bright saturated colors, soft shadows, expressive character faces, child-friendly, safe for kids, no dark themes, no text in image"
+  }
+}

@@ -1,0 +1,17 @@
+.env
+client_secrets.json
+token.json
+*.pyc
+__pycache__/
+venv/
+output/
+database/*.db
+database/*.db-wal
+database/*.db-shm
+assets/fonts/*.ttf
+assets/templates/*
+.DS_Store
+*.log
+.vscode/
+.idea/
+.claude/

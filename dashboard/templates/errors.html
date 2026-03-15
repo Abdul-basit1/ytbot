@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Errors{% endblock %}
+{% block content %}
+<h2>Error Log</h2>
+<p class="subtitle">{{ errors|length }} errors</p>
+
+{% if errors %}
+<table>
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Type</th>
+            <th>Message</th>
+            <th>Retries</th>
+            <th>Status</th>
+            <th>Time</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for e in errors %}
+        <tr class="{% if e.resolved %}row-resolved{% endif %}">
+            <td>{{ e.id }}</td>
+            <td><span class="badge badge--failed">{{ e.error_type }}</span></td>
+            <td title="{{ e.error_message }}">{{ e.error_message[:100] }}{% if e.error_message and e.error_message|length > 100 %}...{% endif %}</td>
+            <td>{{ e.retry_count }}</td>
+            <td>
+                {% if e.resolved %}
+                <span class="badge badge--uploaded">Resolved</span>
+                {% else %}
+                <span class="badge badge--failed">Open</span>
+                {% endif %}
+            </td>
+            <td>{{ e.created_at[:16] if e.created_at else '—' }}</td>
+            <td>
+                {% if not e.resolved %}
+                <button class="btn-sm" onclick="resolveError({{ e.id }})">Resolve</button>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">No errors recorded. The pipeline is running smoothly.</div>
+{% endif %}
+
+<script>
+async function resolveError(id) {
+    await fetch(`/api/errors/${id}/resolve`, {method:'POST'});
+    location.reload();
+}
+</script>
+{% endblock %}
