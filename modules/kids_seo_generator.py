@@ -30,16 +30,23 @@ KIDS_TITLE_FORMULAS = [
     "{concept} Song | Educational Videos for Kids | KiddoWorld",
 ]
 
-KIDS_DEFAULT_DESCRIPTION = """Welcome to KiddoWorld!
+KIDS_DEFAULT_DESCRIPTION = """{video_description}
 
-{video_description}
+Best nursery rhymes, baby songs, and kids learning videos for toddlers and preschoolers!
 
-KiddoWorld brings you fun, colorful, and educational videos for children aged 2-8. \
-Our videos help kids learn through songs, stories, and colorful animations!
+📺 Watch More KiddoWorld:
+▶ ABC & Alphabet Songs
+▶ Numbers & Counting Songs
+▶ Colors, Shapes & Animals
+▶ Bedtime Stories for Kids
+▶ Fun Learning Videos
 
-Subscribe for new videos every day!
+KiddoWorld creates the best educational cartoon videos for babies, toddlers, and preschool children aged 2-8. Our nursery rhymes, kids songs, and animated stories help children learn letters, numbers, colors, shapes, animals, and more through fun, colorful, and engaging music videos. Every video is designed to be safe, educational, and entertaining for young learners.
 
-#KidsVideo #NurseryRhymes #KidsSongs #ChildrensContent #KiddoWorld #LearnWithMe #KidsEducation #CartoonForKids
+🔔 Subscribe to KiddoWorld for NEW videos every day!
+👍 Like & Share to help other parents find us!
+
+#nurseryrhymes #kidssongs #babysongs #toddlersongs #kiddoworld #abcsong #learningvideos #educationalvideos #cartoonforkids #childrenssongs #preschool #kindergarten #kidslearning #babysong #toddlerlearning #kidseducation #animatedsongs #kidsvideos #nurseryrhyme #learnwithme
 """
 
 
@@ -56,24 +63,47 @@ class KidsSEOResult:
 
 # ── System prompt ───────────────────────────────────────────────────────────
 
-KIDS_SEO_SYSTEM_PROMPT = """You are a YouTube SEO expert specializing in children's content.
+KIDS_SEO_SYSTEM_PROMPT = """You are a YouTube SEO expert who has grown kids channels to millions of subscribers. \
+You know exactly what titles, descriptions and tags make kids videos rank #1.
 
-Your job is to create metadata that:
-1. Ranks high in YouTube Kids search
-2. Appeals to parents browsing for their children
-3. Uses child-safe, age-appropriate language
-4. Includes both broad and specific keywords
+TITLE RULES (most important):
+- Stack 2-3 high-volume search phrases separated by |
+- ALWAYS include "Nursery Rhymes" or "Kids Songs" — these are the highest volume search terms
+- ALWAYS end with "KiddoWorld"
+- Max 100 characters
+- Format: "{Topic} | Nursery Rhymes & Kids Songs | KiddoWorld"
+- Examples of WINNING titles:
+  "ABC Song | Learn Alphabet A to Z | Nursery Rhymes & Kids Songs | KiddoWorld"
+  "Wheels on the Bus | Baby Songs & Nursery Rhymes for Babies | KiddoWorld"
+  "Numbers 1-20 | Counting Song for Toddlers | Kids Learning Videos | KiddoWorld"
 
-IMPORTANT: This is children's content. No clickbait. No misleading titles.
-Keep everything wholesome, educational, and fun.
+DESCRIPTION RULES:
+- First 2 lines are CRITICAL (shown in search results) — pack with keywords
+- Line 1: Restate the title with more keywords
+- Line 2: "Best nursery rhymes and baby songs for toddlers and preschoolers"
+- Include song lyrics if applicable (boosts watch time)
+- Include "Watch More KiddoWorld:" section with playlist categories
+- End with keyword-rich paragraph about the channel
+- Add 15-20 hashtags at the very bottom
+- Total 400-600 words
 
-Always respond in JSON format:
+TAGS RULES:
+- First 5 tags are most important — use exact search phrases
+- Mix of: exact topic, broad category, competitor terms, long-tail
+- Include these HIGH VOLUME tags in every video:
+  "nursery rhymes", "kids songs", "baby songs", "toddler songs",
+  "kids learning", "educational videos for kids", "cartoon for kids",
+  "children songs", "preschool songs", "kids videos"
+- Then add topic-specific tags
+- 25-30 tags total, ASCII only, no special characters
+
+Always respond in JSON:
 {
-    "title": "Catchy, clear title under 70 chars — include 'for Kids' or similar",
-    "description": "400-500 word description: what kids will learn, age range, channel info",
-    "tags": ["30-40 tags — mix of broad (kids songs) and specific (abc alphabet song)"],
-    "hashtags": ["#KidsVideo", "#NurseryRhymes", "...10-15 hashtags"],
-    "playlist_category": "category name"
+    "title": "keyword-stacked title with | separators",
+    "description": "SEO-optimized 400-600 word description",
+    "tags": ["25-30 high-volume tags"],
+    "hashtags": ["15-20 hashtags"],
+    "playlist_category": "category"
 }
 """
 

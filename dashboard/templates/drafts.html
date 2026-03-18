@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Drafts{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Saved Drafts</h1>
+    <p class="subtitle">Videos saved for later publishing</p>
+</div>
+
+{% if drafts %}
+<div class="card">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Title</th>
+                <th>Format</th>
+                <th>Playlist</th>
+                <th>SEO</th>
+                <th>Saved</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in drafts %}
+            <tr>
+                <td>{{ d.video_id }}</td>
+                <td style="font-weight: 600;">{{ d.title or 'Untitled' }}</td>
+                <td>
+                    {% if d.format == 'short' %}
+                    <span class="badge badge-purple">Short</span>
+                    {% else %}
+                    <span class="badge badge-blue">Long</span>
+                    {% endif %}
+                </td>
+                <td>{{ d.playlist or '—' }}</td>
+                <td>
+                    {% if d.yt_title %}
+                    <span class="badge badge-green">Ready</span>
+                    {% else %}
+                    <span class="badge badge-yellow">No SEO</span>
+                    {% endif %}
+                </td>
+                <td>{{ d.created_at[:16] if d.created_at else '—' }}</td>
+                <td style="display: flex; gap: 8px;">
+                    {% if d.yt_title %}
+                    <button class="btn btn-sm" style="background: #c4302b; color: white;"
+                            onclick="publishDraft({{ d.id }}, {{ d.video_id }}, '{{ d.yt_title|e }}', '{{ d.format }}')">
+                        Publish
+                    </button>
+                    {% endif %}
+                    {% if d.video_path %}
+                    <a href="/output/videos/{{ d.video_path.split('/')[-1] }}" target="_blank"
+                       class="btn btn-sm btn-outline">Preview</a>
+                    {% endif %}
+                    <button class="btn btn-sm" style="background: #e74c3c; color: white;"
+                            onclick="deleteDraft({{ d.id }})">Delete</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 60px 20px;">
+    <p style="font-size: 16px; color: var(--text-muted); margin-bottom: 16px;">No drafts saved yet.</p>
+    <a href="/upload" class="btn btn-primary">Upload a Video</a>
+</div>
+{% endif %}
+
+<script>
+async function publishDraft(draftId, videoId, title, format) {
+    if (!confirm('Publish "' + title + '" to YouTube?')) return;
+
+    const resp = await fetch('/api/drafts/' + draftId + '/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await resp.json();
+    if (data.youtube_url) {
+        alert('Published! ' + data.youtube_url);
+        location.reload();
+    } else {
+        alert('Error: ' + (data.error || 'Unknown error'));
+    }
+}
+
+async function deleteDraft(draftId) {
+    if (!confirm('Delete this draft?')) return;
+    await fetch('/api/drafts/' + draftId + '/delete', { method: 'POST' });
+    location.reload();
+}
+</script>
+{% endblock %}

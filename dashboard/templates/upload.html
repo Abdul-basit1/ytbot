@@ -1,0 +1,508 @@
+{% extends "base.html" %}
+{% block title %}Upload Video{% endblock %}
+
+{% block content %}
+<div class="create-wizard">
+    <h1>Upload Video</h1>
+    <p class="subtitle">Upload an MP4, fill in the details, generate SEO, and publish to YouTube.</p>
+
+    <!-- Status Messages -->
+    <div id="status-area"></div>
+
+    <!-- Section 1: Upload Video -->
+    <div class="card" id="section-upload">
+        <h3>1. Upload Video</h3>
+        <div class="upload-area" id="drop-zone">
+            <input type="file" id="file-input" accept="video/mp4">
+            <div id="drop-prompt">
+                <div class="upload-icon">&#x1F3AC;</div>
+                <p style="font-size: 16px; font-weight: 600; margin-bottom: 6px;">Drag & drop your MP4 here</p>
+                <p style="font-size: 13px; color: var(--text-muted);">or click to browse</p>
+            </div>
+            <div id="file-info" style="display: none;">
+                <p id="file-name" style="font-size: 15px; font-weight: 600; margin-bottom: 4px;"></p>
+                <p id="file-size" style="font-size: 13px; color: var(--text-muted);"></p>
+            </div>
+        </div>
+        <div id="video-preview-container" style="display: none; margin-top: 16px;">
+            <video id="video-player" controls style="width: 100%; border-radius: 10px; max-height: 400px; background: #000;"></video>
+        </div>
+    </div>
+
+    <!-- Section 2: Video Details -->
+    <div class="card" id="section-details">
+        <h3>2. Video Details</h3>
+
+        <div class="script-section" style="margin-bottom: 16px;">
+            <div class="scene-item">
+                <label>Video Format</label>
+                <div style="display: flex; gap: 12px; margin-top: 6px;">
+                    <label style="display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 10px; border: 2px solid var(--border); cursor: pointer; flex: 1; transition: all 0.2s;" id="format-long-label">
+                        <input type="radio" name="video-format" value="long" id="format-long" checked style="accent-color: var(--accent);">
+                        <div>
+                            <div style="font-weight: 600; font-size: 15px;">Long-form (16:9)</div>
+                            <div style="font-size: 12px; color: var(--text-muted);">Horizontal video + auto-creates Short</div>
+                        </div>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 10px; border: 2px solid var(--border); cursor: pointer; flex: 1; transition: all 0.2s;" id="format-short-label">
+                        <input type="radio" name="video-format" value="short" id="format-short" style="accent-color: var(--accent);">
+                        <div>
+                            <div style="font-weight: 600; font-size: 15px;">Short (9:16)</div>
+                            <div style="font-size: 12px; color: var(--text-muted);">Vertical video, max 60s, uploaded as YouTube Short</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="script-section">
+            <div class="scene-item">
+                <label for="video-title">Title</label>
+                <input type="text" id="video-title" class="input-lg" placeholder="e.g. Sid and Kido Learn the ABCs" style="width: 100%;">
+            </div>
+        </div>
+
+        <div class="script-section">
+            <div class="scene-item">
+                <label for="video-description">Short Description</label>
+                <textarea id="video-description" class="textarea-lg" rows="3" placeholder="What happens in this video? Write 2-3 sentences describing the content."></textarea>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+            <div class="scene-item">
+                <label for="playlist-select">Playlist</label>
+                <select id="playlist-select" class="select-sm" style="width: 100%;">
+                    <option value="songs_rhymes">Songs & Rhymes</option>
+                    <option value="stories_adventures">Stories & Adventures</option>
+                </select>
+            </div>
+            <div class="scene-item">
+                <label for="age-select">Target Age</label>
+                <select id="age-select" class="select-sm" style="width: 100%;">
+                    <option value="2-4">2-4 years</option>
+                    <option value="4-6">4-6 years</option>
+                    <option value="6-8">6-8 years</option>
+                    <option value="all">All ages</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="scene-item">
+            <label>Characters Involved</label>
+            <div style="display: flex; gap: 20px; margin-top: 6px;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer;">
+                    <input type="checkbox" name="characters" value="Sid" style="accent-color: var(--accent);"> Sid
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer;">
+                    <input type="checkbox" name="characters" value="Kido" style="accent-color: var(--accent);"> Kido
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer;">
+                    <input type="checkbox" name="characters" value="Mom" style="accent-color: var(--accent);"> Mom
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer;">
+                    <input type="checkbox" name="characters" value="Dad" style="accent-color: var(--accent);"> Dad
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2b: Thumbnail -->
+    <div class="card" id="section-thumbnail">
+        <h3>2b. Thumbnail (Optional)</h3>
+        <p class="hint">Upload a custom thumbnail (JPG/PNG, 1280x720 recommended)</p>
+        <div class="upload-area" id="thumb-drop-zone" style="padding: 24px;">
+            <input type="file" id="thumb-input" accept="image/jpeg,image/png" onchange="thumbSelected(this)">
+            <div id="thumb-prompt">
+                <div class="upload-icon">🖼️</div>
+                <p>Drag & drop thumbnail here</p>
+            </div>
+            <div id="thumb-preview" style="display: none;">
+                <img id="thumb-img" style="max-width: 100%; max-height: 200px; border-radius: 8px;">
+                <p id="thumb-name" style="font-size: 12px; color: var(--text-muted); margin-top: 8px;"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: Auto-Generated SEO -->
+    <div class="card" id="section-seo" style="display: none;">
+        <h3>3. Auto-Generated SEO</h3>
+
+        <div class="seo-field">
+            <label for="yt-title">YouTube Title</label>
+            <input type="text" id="yt-title" class="input-lg" style="width: 100%;">
+        </div>
+
+        <div class="seo-field">
+            <label for="yt-description">YouTube Description</label>
+            <textarea id="yt-description" class="textarea-lg" rows="6"></textarea>
+        </div>
+
+        <div class="seo-field">
+            <label for="yt-tags">Tags</label>
+            <input type="text" id="yt-tags" class="input-lg" style="width: 100%;" placeholder="Comma-separated tags">
+        </div>
+
+        <div class="btn-row" style="justify-content: flex-start;">
+            <button class="btn btn-outline" id="btn-regenerate" onclick="generateSEO()">Regenerate SEO</button>
+        </div>
+    </div>
+
+    <!-- Section 4: Actions -->
+    <div class="card" id="section-actions">
+        <h3>4. Actions</h3>
+
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; margin-bottom: 20px;" id="create-short-label">
+            <input type="checkbox" id="create-short" checked style="accent-color: var(--accent);"> Also Create Short from this video
+        </label>
+
+        <div class="btn-row" style="justify-content: flex-start; gap: 10px;">
+            <button class="btn btn-primary" id="btn-generate-seo" onclick="generateSEO()">Generate SEO</button>
+            <button class="btn btn-outline" id="btn-preview" disabled onclick="previewVideo()">Preview</button>
+            <button class="btn btn-outline" id="btn-save-draft" onclick="saveDraft()" style="border-color: #f39c12; color: #f39c12;">Save as Draft</button>
+            <button class="btn btn-primary btn-lg" id="btn-publish" disabled onclick="publishToYouTube()" style="background: #c4302b;">Upload to YouTube</button>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal" id="preview-modal" style="display: none;" onclick="closePreview(event)">
+    <div class="modal-content" style="max-width: 720px;">
+        <div class="modal-close" onclick="document.getElementById('preview-modal').style.display='none'">X</div>
+        <h3 style="margin-bottom: 12px;">Preview</h3>
+        <video id="preview-player" controls style="width: 100%; border-radius: 8px; margin-bottom: 16px; background: #000;"></video>
+        <div class="seo-preview">
+            <div class="seo-field">
+                <label>YouTube Title</label>
+                <p id="preview-title" style="font-size: 15px; font-weight: 600;"></p>
+            </div>
+            <div class="seo-field">
+                <label>YouTube Description</label>
+                <p id="preview-desc" style="font-size: 13px; white-space: pre-wrap;"></p>
+            </div>
+            <div class="seo-field">
+                <label>Tags</label>
+                <div id="preview-tags"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    // State
+    let uploadedFile = null;
+    let uploadedVideoId = null;
+    let uploadedFilePath = null;
+    let thumbnailFile = null;
+    let seoGenerated = false;
+
+    // Format toggle
+    document.querySelectorAll('input[name="video-format"]').forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            const isShort = this.value === 'short';
+            const shortLabel = document.getElementById('create-short-label');
+            const shortCheckbox = document.getElementById('create-short');
+            if (isShort) {
+                shortLabel.style.display = 'none';
+                shortCheckbox.checked = false;
+            } else {
+                shortLabel.style.display = 'flex';
+                shortCheckbox.checked = true;
+            }
+            // Highlight selected
+            document.getElementById('format-long-label').style.borderColor = !isShort ? 'var(--accent)' : 'var(--border)';
+            document.getElementById('format-short-label').style.borderColor = isShort ? 'var(--accent)' : 'var(--border)';
+        });
+        // Init highlight
+        if (radio.checked) {
+            document.getElementById('format-long-label').style.borderColor = radio.value === 'long' ? 'var(--accent)' : 'var(--border)';
+        }
+    });
+
+    function getVideoFormat() {
+        return document.querySelector('input[name="video-format"]:checked').value;
+    }
+
+    // Thumbnail handling
+    window.thumbSelected = function(input) {
+        if (input.files.length > 0) {
+            thumbnailFile = input.files[0];
+            document.getElementById('thumb-prompt').style.display = 'none';
+            document.getElementById('thumb-preview').style.display = 'block';
+            document.getElementById('thumb-img').src = URL.createObjectURL(thumbnailFile);
+            document.getElementById('thumb-name').textContent = thumbnailFile.name + ' (' + (thumbnailFile.size/1024).toFixed(0) + ' KB)';
+        }
+    };
+
+    // DOM refs
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const dropPrompt = document.getElementById('drop-prompt');
+    const fileInfo = document.getElementById('file-info');
+    const fileName = document.getElementById('file-name');
+    const fileSize = document.getElementById('file-size');
+    const videoPreview = document.getElementById('video-preview-container');
+    const videoPlayer = document.getElementById('video-player');
+    const statusArea = document.getElementById('status-area');
+
+    // ── Drag & Drop ──
+    dropZone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        dropZone.style.borderColor = 'var(--accent)';
+        dropZone.style.background = 'rgba(108,92,231,0.05)';
+    });
+
+    dropZone.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        dropZone.style.borderColor = '';
+        dropZone.style.background = '';
+    });
+
+    dropZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        dropZone.style.borderColor = '';
+        dropZone.style.background = '';
+        const files = e.dataTransfer.files;
+        if (files.length > 0) handleFile(files[0]);
+    });
+
+    fileInput.addEventListener('change', function() {
+        if (fileInput.files.length > 0) handleFile(fileInput.files[0]);
+    });
+
+    function handleFile(file) {
+        if (!file.type.startsWith('video/')) {
+            showStatus('Please select an MP4 video file.', 'error');
+            return;
+        }
+        uploadedFile = file;
+        dropPrompt.style.display = 'none';
+        fileInfo.style.display = 'block';
+        fileName.textContent = file.name;
+        fileSize.textContent = formatSize(file.size);
+
+        // Video preview
+        const url = URL.createObjectURL(file);
+        videoPlayer.src = url;
+        videoPreview.style.display = 'block';
+
+        // Upload the file
+        uploadFile(file);
+    }
+
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+        return (bytes / 1073741824).toFixed(2) + ' GB';
+    }
+
+    // ── File Upload ──
+    async function uploadFile(file) {
+        showStatus('Uploading video...', 'info', true);
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('title', document.getElementById('video-title').value || file.name);
+        formData.append('description', '');
+        formData.append('playlist', document.getElementById('playlist-select').value);
+
+        try {
+            const resp = await fetch('/api/upload/video', { method: 'POST', body: formData });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'Upload failed');
+            uploadedVideoId = data.video_id;
+            uploadedFilePath = data.filename;
+            showStatus('Video uploaded (' + data.size_mb + ' MB). Now fill in details and generate SEO.', 'success');
+        } catch (err) {
+            showStatus('Upload error: ' + err.message, 'error');
+        }
+    }
+
+    // ── Generate SEO ──
+    window.generateSEO = async function() {
+        const title = document.getElementById('video-title').value.trim();
+        const description = document.getElementById('video-description').value.trim();
+        const playlist = document.getElementById('playlist-select').value;
+        const age = document.getElementById('age-select').value;
+        const charBoxes = document.querySelectorAll('input[name="characters"]:checked');
+        const characters = Array.from(charBoxes).map(c => c.value);
+
+        if (!title) { showStatus('Please enter a video title.', 'error'); return; }
+        if (!description) { showStatus('Please enter a short description.', 'error'); return; }
+
+        showStatus('Generating SEO metadata...', 'info', true);
+        document.getElementById('btn-generate-seo').disabled = true;
+
+        try {
+            const resp = await fetch('/api/upload/generate-seo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    video_id: uploadedVideoId,
+                    title: title,
+                    description: description,
+                    playlist: playlist,
+                    age_group: age,
+                    characters: characters.join(', ')
+                })
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'SEO generation failed');
+
+            document.getElementById('yt-title').value = data.youtube_title || data.title || '';
+            document.getElementById('yt-description').value = data.youtube_description || data.description || '';
+            document.getElementById('yt-tags').value = (data.tags || []).join(', ');
+
+            document.getElementById('section-seo').style.display = 'block';
+            document.getElementById('section-seo').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            seoGenerated = true;
+            document.getElementById('btn-preview').disabled = false;
+            document.getElementById('btn-publish').disabled = false;
+            showStatus('SEO generated. Review and edit as needed, then publish.', 'success');
+        } catch (err) {
+            showStatus('SEO generation error: ' + err.message, 'error');
+        } finally {
+            document.getElementById('btn-generate-seo').disabled = false;
+        }
+    };
+
+    // ── Preview ──
+    window.previewVideo = function() {
+        if (!seoGenerated) return;
+        const modal = document.getElementById('preview-modal');
+        const player = document.getElementById('preview-player');
+
+        if (uploadedFile) {
+            player.src = URL.createObjectURL(uploadedFile);
+        }
+
+        document.getElementById('preview-title').textContent = document.getElementById('yt-title').value;
+        document.getElementById('preview-desc').textContent = document.getElementById('yt-description').value;
+
+        const tagsContainer = document.getElementById('preview-tags');
+        tagsContainer.innerHTML = '';
+        const tags = document.getElementById('yt-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+        tags.forEach(function(t) {
+            const span = document.createElement('span');
+            span.className = 'tag';
+            span.textContent = t;
+            tagsContainer.appendChild(span);
+        });
+
+        modal.style.display = 'flex';
+    };
+
+    window.closePreview = function(e) {
+        if (e.target === document.getElementById('preview-modal')) {
+            document.getElementById('preview-modal').style.display = 'none';
+            document.getElementById('preview-player').pause();
+        }
+    };
+
+    // ── Publish to YouTube ──
+    window.publishToYouTube = async function() {
+        if (!seoGenerated) return;
+
+        showStatus('Uploading to YouTube...', 'info', true);
+        document.getElementById('btn-publish').disabled = true;
+
+        const charBoxes = document.querySelectorAll('input[name="characters"]:checked');
+        const characters = Array.from(charBoxes).map(c => c.value);
+
+        try {
+            const resp = await fetch('/api/upload/publish', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    video_id: uploadedVideoId,
+                    title: document.getElementById('yt-title').value,
+                    description: document.getElementById('yt-description').value,
+                    tags: document.getElementById('yt-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+                    create_short: document.getElementById('create-short').checked,
+                    format: getVideoFormat()
+                })
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'YouTube upload failed');
+
+            const url = data.youtube_url || data.url || '#';
+            showStatus(
+                'Video published successfully! <a href="' + url + '" target="_blank" style="color: var(--green); font-weight: 700;">View on YouTube</a>',
+                'success'
+            );
+            document.getElementById('btn-publish').textContent = 'Published';
+        } catch (err) {
+            showStatus('Publish error: ' + err.message, 'error');
+            document.getElementById('btn-publish').disabled = false;
+        }
+    };
+
+    // ── Save Draft ──
+    window.saveDraft = async function() {
+        if (!uploadedVideoId) {
+            showStatus('Upload a video first before saving draft.', 'error');
+            return;
+        }
+        showStatus('Saving draft...', 'info', true);
+        try {
+            const resp = await fetch('/api/upload/save-draft', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    video_id: uploadedVideoId,
+                    title: document.getElementById('video-title').value,
+                    description: document.getElementById('video-description').value,
+                    playlist: document.getElementById('playlist-select').value,
+                    format: getVideoFormat(),
+                    yt_title: document.getElementById('yt-title').value || '',
+                    yt_description: document.getElementById('yt-description').value || '',
+                    yt_tags: document.getElementById('yt-tags').value || '',
+                })
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'Save failed');
+            showStatus('Draft saved! You can find it in the <a href="/drafts" style="color: var(--accent); font-weight: 700;">Drafts</a> page.', 'success');
+        } catch (err) {
+            showStatus('Save error: ' + err.message, 'error');
+        }
+    };
+
+    // ── Status Messages ──
+    function showStatus(message, type, loading) {
+        let cls = 'status-msg ';
+        if (type === 'error') cls += 'status-error';
+        else if (type === 'success') cls += 'status-success';
+        else cls += 'status-info';
+
+        let html = message;
+        if (loading) {
+            html = '<span class="loading-inline">' + message + '</span>';
+        }
+
+        statusArea.innerHTML = '<div class="' + cls + '">' + html + '</div>';
+
+        if (type === 'success' || type === 'error') {
+            // Clear non-critical status after a while
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+})();
+</script>
+
+<style>
+    .loading-inline::after {
+        content: '';
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid currentColor;
+        border-top-color: transparent;
+        border-radius: 50%;
+        margin-left: 8px;
+        vertical-align: middle;
+        animation: spin 0.8s linear infinite;
+    }
+</style>
+{% endblock %}

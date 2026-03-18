@@ -1,0 +1,522 @@
+{% extends "base.html" %}
+{% block title %}Create Video{% endblock %}
+{% block content %}
+<div class="create-wizard">
+    <h1>Create Video</h1>
+
+    <!-- Step indicator -->
+    <div class="steps-bar">
+        <div class="step-dot active" id="dot-1">1<span>Topic</span></div>
+        <div class="step-line"></div>
+        <div class="step-dot" id="dot-2">2<span>Script</span></div>
+        <div class="step-line"></div>
+        <div class="step-dot" id="dot-3">3<span>Song</span></div>
+        <div class="step-line"></div>
+        <div class="step-dot" id="dot-4">4<span>Images</span></div>
+        <div class="step-line"></div>
+        <div class="step-dot" id="dot-5">5<span>Preview</span></div>
+    </div>
+
+    <!-- Status message -->
+    <div id="status-msg" class="status-msg" style="display:none"></div>
+
+    <!-- ═══════════════ STEP 1: Topic ═══════════════ -->
+    <div class="wizard-step" id="step-1">
+        <div class="card">
+            <h2>Step 1: Choose Topic</h2>
+            <p class="hint">Pick a suggested topic or type your own</p>
+
+            <div id="suggestions-loading" class="loading">Loading suggestions...</div>
+            <div id="suggestions-grid" class="suggestions-grid" style="display:none"></div>
+
+            <div class="divider"><span>OR</span></div>
+
+            <div class="custom-topic">
+                <input type="text" id="custom-topic" placeholder="Type your own topic..." class="input-lg">
+                <select id="video-type" class="select-sm">
+                    <option value="song">Song / Rhyme</option>
+                    <option value="story">Story</option>
+                </select>
+            </div>
+
+            <button class="btn btn-primary btn-lg" onclick="selectTopic()">Next: Generate Script</button>
+        </div>
+    </div>
+
+    <!-- ═══════════════ STEP 2: Script ═══════════════ -->
+    <div class="wizard-step" id="step-2" style="display:none">
+        <div class="card">
+            <h2>Step 2: Review Script</h2>
+            <p class="hint">Review the voice text and scene descriptions. Edit if needed.</p>
+
+            <div class="script-section">
+                <h3>Voice Script <span class="badge">What the voice will say</span></h3>
+                <textarea id="voice-script" class="textarea-lg" rows="10"></textarea>
+            </div>
+
+            <div class="script-section">
+                <h3>Scene Descriptions <span class="badge">For image generation</span></h3>
+                <div id="scenes-list"></div>
+            </div>
+
+            <div class="script-section">
+                <h3>Song Lyrics <span class="badge">Copy to Suno</span></h3>
+                <textarea id="song-lyrics" class="textarea-lg" rows="6"></textarea>
+                <button class="btn btn-small" onclick="copyLyrics()">Copy Lyrics</button>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-outline" onclick="goStep(1)">Back</button>
+                <button class="btn btn-outline" onclick="regenerateScript()">Regenerate</button>
+                <button class="btn btn-primary btn-lg" onclick="approveScript()">Approve Script</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ STEP 3: Song/Audio ═══════════════ -->
+    <div class="wizard-step" id="step-3" style="display:none">
+        <div class="card">
+            <h2>Step 3: Upload Song</h2>
+            <p class="hint">Upload your Suno MP3, or skip to use edge-tts voice</p>
+
+            <div class="lyrics-box">
+                <h3>Lyrics for Suno</h3>
+                <pre id="lyrics-display"></pre>
+                <button class="btn btn-small" onclick="copyLyrics()">Copy to Clipboard</button>
+            </div>
+
+            <div class="upload-area" id="upload-area">
+                <input type="file" id="song-file" accept=".mp3,.wav" onchange="songSelected(this)">
+                <div class="upload-placeholder" id="upload-placeholder">
+                    <div class="upload-icon">🎵</div>
+                    <p>Drag & Drop MP3 here</p>
+                    <p class="hint">or click to browse</p>
+                </div>
+                <div id="upload-preview" style="display:none">
+                    <div class="upload-icon">✅</div>
+                    <p id="song-filename"></p>
+                    <audio id="song-player" controls></audio>
+                </div>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-outline" onclick="goStep(2)">Back</button>
+                <button class="btn btn-outline" onclick="skipSong()">Skip (Use Voice Only)</button>
+                <button class="btn btn-primary btn-lg" id="btn-upload-song" onclick="uploadSong()" disabled>Upload & Continue</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ STEP 4: Images ═══════════════ -->
+    <div class="wizard-step" id="step-4" style="display:none">
+        <div class="card">
+            <h2>Step 4: Review Images</h2>
+            <p class="hint">Click any image to regenerate it</p>
+
+            <div id="images-loading" class="loading">Generating images... This takes ~2 minutes</div>
+            <div id="images-grid" class="images-grid" style="display:none"></div>
+
+            <div class="btn-row">
+                <button class="btn btn-outline" onclick="goStep(3)">Back</button>
+                <button class="btn btn-outline" onclick="regenerateAllImages()">Regenerate All</button>
+                <button class="btn btn-primary btn-lg" id="btn-approve-images" onclick="approveImages()">Approve & Assemble Video</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ STEP 5: Preview ═══════════════ -->
+    <div class="wizard-step" id="step-5" style="display:none">
+        <div class="card">
+            <h2>Step 5: Preview & Upload</h2>
+            <p class="hint">Watch the video. Approve to upload to YouTube.</p>
+
+            <div id="video-loading" class="loading">Assembling video... This takes ~15 minutes</div>
+            <div id="video-preview" style="display:none">
+                <video id="preview-player" controls width="100%">
+                    <source id="video-source" src="" type="video/mp4">
+                </video>
+                <div class="video-info">
+                    <span id="video-duration"></span>
+                    <span id="video-size"></span>
+                </div>
+            </div>
+
+            <div class="seo-preview" id="seo-preview" style="display:none">
+                <h3>YouTube SEO</h3>
+                <div class="seo-field">
+                    <label>Title</label>
+                    <input type="text" id="yt-title" class="input-lg">
+                </div>
+                <div class="seo-field">
+                    <label>Description</label>
+                    <textarea id="yt-description" class="textarea-lg" rows="6"></textarea>
+                </div>
+                <div class="seo-field">
+                    <label>Tags</label>
+                    <input type="text" id="yt-tags" class="input-lg" placeholder="comma separated">
+                </div>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-outline" onclick="goStep(4)">Back</button>
+                <button class="btn btn-red" onclick="rejectVideo()">Reject & Start Over</button>
+                <button class="btn btn-green btn-lg" id="btn-upload-yt" onclick="approveUpload()">Approve & Upload to YouTube</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ DONE ═══════════════ -->
+    <div class="wizard-step" id="step-done" style="display:none">
+        <div class="card card-success">
+            <div class="done-icon">✅</div>
+            <h2>Video Uploaded!</h2>
+            <p id="youtube-link"></p>
+            <div class="btn-row">
+                <button class="btn btn-primary btn-lg" onclick="location.reload()">Create Another Video</button>
+                <a href="/videos" class="btn btn-outline">View All Videos</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── State ──
+let wizardState = {
+    videoId: null,
+    topic: '',
+    type: 'song',
+    script: null,
+    scenes: [],
+    lyrics: '',
+    songPath: null,
+    images: [],
+    videoPath: null,
+    seo: null,
+};
+
+// ── Navigation ──
+function goStep(n) {
+    document.querySelectorAll('.wizard-step').forEach(s => s.style.display = 'none');
+    document.getElementById('step-' + n).style.display = 'block';
+    document.querySelectorAll('.step-dot').forEach((d, i) => {
+        d.classList.toggle('active', i < n);
+        d.classList.toggle('current', i === n - 1);
+    });
+    window.scrollTo(0, 0);
+}
+
+function showStatus(msg, type) {
+    const el = document.getElementById('status-msg');
+    el.textContent = msg;
+    el.className = 'status-msg status-' + type;
+    el.style.display = 'block';
+    if (type === 'success') setTimeout(() => el.style.display = 'none', 3000);
+}
+
+function showLoading(id, show) {
+    document.getElementById(id).style.display = show ? 'block' : 'none';
+}
+
+// ── Step 1: Topics ──
+async function loadSuggestions() {
+    showLoading('suggestions-loading', true);
+    try {
+        const resp = await fetch('/api/create/suggest-topics', {method: 'POST'});
+        const data = await resp.json();
+        const grid = document.getElementById('suggestions-grid');
+        grid.innerHTML = '';
+        data.topics.forEach(t => {
+            grid.innerHTML += `
+                <div class="suggestion-card" onclick="pickTopic('${t.topic.replace(/'/g, "\\'")}', '${t.type}')">
+                    <div class="suggestion-type">${t.type}</div>
+                    <div class="suggestion-title">${t.topic}</div>
+                    <div class="suggestion-desc">${t.description || ''}</div>
+                </div>`;
+        });
+        grid.style.display = 'grid';
+    } catch(e) {
+        showStatus('Failed to load suggestions: ' + e, 'error');
+    }
+    showLoading('suggestions-loading', false);
+}
+
+function pickTopic(topic, type) {
+    document.getElementById('custom-topic').value = topic;
+    document.getElementById('video-type').value = type;
+    document.querySelectorAll('.suggestion-card').forEach(c => c.classList.remove('selected'));
+    event.currentTarget.classList.add('selected');
+}
+
+async function selectTopic() {
+    const topic = document.getElementById('custom-topic').value.trim();
+    const type = document.getElementById('video-type').value;
+    if (!topic) { showStatus('Please pick or type a topic', 'error'); return; }
+
+    wizardState.topic = topic;
+    wizardState.type = type;
+
+    showStatus('Generating script...', 'info');
+    goStep(2);
+
+    try {
+        const resp = await fetch('/api/create/generate-script', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({topic, type}),
+        });
+        const data = await resp.json();
+        if (data.error) { showStatus(data.error, 'error'); goStep(1); return; }
+
+        wizardState.videoId = data.video_id;
+        wizardState.script = data.voice_script;
+        wizardState.scenes = data.scenes;
+        wizardState.lyrics = data.lyrics || '';
+
+        document.getElementById('voice-script').value = data.voice_script;
+        document.getElementById('song-lyrics').value = data.lyrics || '';
+
+        const scenesDiv = document.getElementById('scenes-list');
+        scenesDiv.innerHTML = '';
+        data.scenes.forEach((s, i) => {
+            scenesDiv.innerHTML += `
+                <div class="scene-item">
+                    <label>Scene ${i+1}</label>
+                    <textarea class="scene-textarea" id="scene-${i}" rows="3">${s}</textarea>
+                </div>`;
+        });
+
+        showStatus('Script generated!', 'success');
+    } catch(e) {
+        showStatus('Script generation failed: ' + e, 'error');
+        goStep(1);
+    }
+}
+
+function copyLyrics() {
+    const lyrics = document.getElementById('song-lyrics')?.value || document.getElementById('lyrics-display')?.textContent || '';
+    navigator.clipboard.writeText(lyrics);
+    showStatus('Lyrics copied!', 'success');
+}
+
+async function regenerateScript() {
+    showStatus('Regenerating script...', 'info');
+    await selectTopic();
+}
+
+function approveScript() {
+    // Save any edits
+    wizardState.script = document.getElementById('voice-script').value;
+    wizardState.scenes = [];
+    document.querySelectorAll('.scene-textarea').forEach(t => {
+        wizardState.scenes.push(t.value);
+    });
+    wizardState.lyrics = document.getElementById('song-lyrics').value;
+
+    // Show lyrics in step 3
+    document.getElementById('lyrics-display').textContent = wizardState.lyrics;
+
+    goStep(3);
+}
+
+// ── Step 3: Song Upload ──
+function songSelected(input) {
+    if (input.files.length > 0) {
+        const file = input.files[0];
+        document.getElementById('upload-placeholder').style.display = 'none';
+        document.getElementById('upload-preview').style.display = 'block';
+        document.getElementById('song-filename').textContent = file.name + ' (' + (file.size/1024/1024).toFixed(1) + ' MB)';
+        document.getElementById('song-player').src = URL.createObjectURL(file);
+        document.getElementById('btn-upload-song').disabled = false;
+    }
+}
+
+async function uploadSong() {
+    const file = document.getElementById('song-file').files[0];
+    if (!file) return;
+
+    showStatus('Uploading song...', 'info');
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('video_id', wizardState.videoId);
+
+    try {
+        const resp = await fetch('/api/create/upload-audio', {method: 'POST', body: formData});
+        const data = await resp.json();
+        if (data.error) { showStatus(data.error, 'error'); return; }
+
+        wizardState.songPath = data.path;
+        showStatus('Song uploaded!', 'success');
+        generateImages();
+    } catch(e) {
+        showStatus('Upload failed: ' + e, 'error');
+    }
+}
+
+function skipSong() {
+    wizardState.songPath = null;
+    generateImages();
+}
+
+// ── Step 4: Images ──
+async function generateImages() {
+    goStep(4);
+    showLoading('images-loading', true);
+    document.getElementById('images-grid').style.display = 'none';
+    document.getElementById('btn-approve-images').disabled = true;
+
+    try {
+        const resp = await fetch('/api/create/generate-images', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                video_id: wizardState.videoId,
+                scenes: wizardState.scenes,
+            }),
+        });
+        const data = await resp.json();
+        if (data.error) { showStatus(data.error, 'error'); return; }
+
+        wizardState.images = data.images;
+        renderImagesGrid(data.images);
+        showStatus(data.images.length + ' images generated!', 'success');
+    } catch(e) {
+        showStatus('Image generation failed: ' + e, 'error');
+    }
+    showLoading('images-loading', false);
+}
+
+function renderImagesGrid(images) {
+    const grid = document.getElementById('images-grid');
+    grid.innerHTML = '';
+    images.forEach((img, i) => {
+        grid.innerHTML += `
+            <div class="image-card" id="img-card-${i}">
+                <img src="/output/images/${img.filename}" alt="Scene ${i+1}" loading="lazy">
+                <div class="image-overlay">
+                    <span>Scene ${i+1}</span>
+                    <button class="btn btn-small btn-regen" onclick="regenerateImage(${i})">Regenerate</button>
+                </div>
+            </div>`;
+    });
+    grid.style.display = 'grid';
+    document.getElementById('btn-approve-images').disabled = false;
+}
+
+async function regenerateImage(index) {
+    const card = document.getElementById('img-card-' + index);
+    card.classList.add('regenerating');
+    showStatus('Regenerating image ' + (index+1) + '...', 'info');
+
+    try {
+        const resp = await fetch('/api/create/regenerate-image', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                video_id: wizardState.videoId,
+                scene: wizardState.scenes[index],
+                index: index,
+            }),
+        });
+        const data = await resp.json();
+        if (data.error) { showStatus(data.error, 'error'); return; }
+
+        wizardState.images[index] = data.image;
+        const img = card.querySelector('img');
+        img.src = '/output/images/' + data.image.filename + '?t=' + Date.now();
+        showStatus('Image regenerated!', 'success');
+    } catch(e) {
+        showStatus('Regeneration failed: ' + e, 'error');
+    }
+    card.classList.remove('regenerating');
+}
+
+async function regenerateAllImages() {
+    showStatus('Regenerating all images...', 'info');
+    await generateImages();
+}
+
+async function approveImages() {
+    goStep(5);
+    showLoading('video-loading', true);
+    document.getElementById('video-preview').style.display = 'none';
+    document.getElementById('seo-preview').style.display = 'none';
+    document.getElementById('btn-upload-yt').disabled = true;
+
+    try {
+        const resp = await fetch('/api/create/assemble-video', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                video_id: wizardState.videoId,
+                voice_script: wizardState.script,
+                song_path: wizardState.songPath,
+                images: wizardState.images.map(i => i.filename),
+            }),
+        });
+        const data = await resp.json();
+        if (data.error) { showStatus(data.error, 'error'); return; }
+
+        wizardState.videoPath = data.video_path;
+        wizardState.seo = data.seo;
+
+        // Show video preview
+        document.getElementById('video-source').src = data.video_url;
+        document.getElementById('preview-player').load();
+        document.getElementById('video-duration').textContent = data.duration + 's';
+        document.getElementById('video-size').textContent = data.size_mb + ' MB';
+        document.getElementById('video-preview').style.display = 'block';
+
+        // Show SEO
+        document.getElementById('yt-title').value = data.seo.title;
+        document.getElementById('yt-description').value = data.seo.description;
+        document.getElementById('yt-tags').value = data.seo.tags.join(', ');
+        document.getElementById('seo-preview').style.display = 'block';
+
+        document.getElementById('btn-upload-yt').disabled = false;
+        showStatus('Video assembled! Review and approve.', 'success');
+    } catch(e) {
+        showStatus('Assembly failed: ' + e, 'error');
+    }
+    showLoading('video-loading', false);
+}
+
+// ── Step 5: Upload ──
+async function approveUpload() {
+    showStatus('Uploading to YouTube...', 'info');
+    document.getElementById('btn-upload-yt').disabled = true;
+
+    try {
+        const resp = await fetch('/api/create/upload-youtube', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                video_id: wizardState.videoId,
+                title: document.getElementById('yt-title').value,
+                description: document.getElementById('yt-description').value,
+                tags: document.getElementById('yt-tags').value.split(',').map(t => t.trim()),
+            }),
+        });
+        const data = await resp.json();
+        if (data.error) { showStatus(data.error, 'error'); document.getElementById('btn-upload-yt').disabled = false; return; }
+
+        // Show done
+        document.querySelectorAll('.wizard-step').forEach(s => s.style.display = 'none');
+        document.getElementById('step-done').style.display = 'block';
+        document.getElementById('youtube-link').innerHTML = `<a href="${data.youtube_url}" target="_blank">${data.youtube_url}</a>`;
+        document.querySelectorAll('.step-dot').forEach(d => d.classList.add('active'));
+    } catch(e) {
+        showStatus('Upload failed: ' + e, 'error');
+        document.getElementById('btn-upload-yt').disabled = false;
+    }
+}
+
+function rejectVideo() {
+    if (confirm('Start over? This will discard the current video.')) {
+        location.reload();
+    }
+}
+
+// ── Init ──
+loadSuggestions();
+</script>
+{% endblock %}

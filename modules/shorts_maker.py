@@ -58,6 +58,9 @@ def create(
     Returns:
         dict with keys: path (Path), duration_seconds (float)
     """
+    # Ensure Path object
+    long_video_path = Path(long_video_path)
+
     if output_filename is None:
         output_filename = f"short_{uuid.uuid4().hex[:10]}.mp4"
     output_path = VIDEO_DIR / output_filename

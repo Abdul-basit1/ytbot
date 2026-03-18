@@ -1,135 +1,186 @@
 {% extends "base.html" %}
-{% block title %}Analytics{% endblock %}
+{% block title %}Analytics & Intelligence{% endblock %}
 {% block content %}
-<h2>Analytics &amp; Intelligence</h2>
+<h2>Analytics & Intelligence</h2>
+<p class="subtitle">Performance data, SEO learning, and AI-driven insights</p>
 
-<!-- Strategy -->
-{% if strategy %}
-<div class="card">
-    <h3>Current Strategy</h3>
-    <div class="strategy-grid">
-        <div class="strategy-item">
-            <span class="strategy-label">Best Upload Time</span>
-            <span class="strategy-value">{{ strategy.best_upload_time or 'N/A' }} PKT</span>
-        </div>
-        <div class="strategy-item">
-            <span class="strategy-label">Best Video Length</span>
-            <span class="strategy-value">{{ strategy.best_video_length or 'N/A' }} min</span>
-        </div>
-        <div class="strategy-item">
-            <span class="strategy-label">Best Niche</span>
-            <span class="strategy-value">{{ strategy.best_niche or 'N/A' }}</span>
-        </div>
-        <div class="strategy-item">
-            <span class="strategy-label">Avg Views</span>
-            <span class="strategy-value">{{ strategy.avg_views|fnum }}</span>
-        </div>
-        <div class="strategy-item">
-            <span class="strategy-label">Avg CTR</span>
-            <span class="strategy-value">{{ strategy.avg_ctr|fpct }}</span>
-        </div>
-        <div class="strategy-item">
-            <span class="strategy-label">Avg Watch Time</span>
-            <span class="strategy-value">{{ strategy.avg_watch_time_pct|fpct }}</span>
-        </div>
+<!-- Channel Overview -->
+<div class="stat-grid">
+    <div class="stat-card">
+        <span class="stat-value">{{ totals.total_videos }}</span>
+        <span class="stat-label">Videos</span>
     </div>
-    {% if strategy.recommendation_notes %}
-    <div class="recommendations">
-        <h4>Intelligence Recommendations</h4>
-        {% for line in strategy.recommendation_notes.split('\n') %}
-        {% if line.strip() %}
-        <p class="rec-item">{{ line }}</p>
-        {% endif %}
-        {% endfor %}
+    <div class="stat-card">
+        <span class="stat-value">{{ totals.total_views|fnum }}</span>
+        <span class="stat-label">Total Views</span>
     </div>
-    {% endif %}
-    {% if strategy.top_performing_keywords %}
-    <div class="keywords">
-        <h4>Top Performing Keywords</h4>
-        {% for kw in strategy.top_performing_keywords %}
-        <span class="tag">{{ kw }}</span>
-        {% endfor %}
+    <div class="stat-card">
+        <span class="stat-value">{{ totals.total_likes|fnum }}</span>
+        <span class="stat-label">Total Likes</span>
     </div>
-    {% endif %}
-    <p class="text-muted">Last updated: {{ strategy.last_updated or 'Never' }}</p>
+    <div class="stat-card">
+        <span class="stat-value">{{ "%.1f"|format(totals.avg_views) }}</span>
+        <span class="stat-label">Avg Views/Video</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">${{ "%.2f"|format(totals.total_cost) }}</span>
+        <span class="stat-label">Total Cost</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">{{ totals.channel_age_days }}d</span>
+        <span class="stat-label">Channel Age</span>
+    </div>
 </div>
-{% else %}
-<div class="card">
-    <div class="empty-state">No strategy data yet. The intelligence engine needs at least 3 uploaded videos to start learning.</div>
-</div>
-{% endif %}
 
-<!-- Top videos -->
-{% if top_videos %}
+<!-- Refresh Analytics -->
+<div style="margin-bottom: 20px;">
+    <button class="btn btn-primary" id="btn-refresh" onclick="refreshAnalytics()">Refresh from YouTube</button>
+    <span id="refresh-status" style="margin-left: 12px; font-size: 13px; color: var(--text-muted);"></span>
+</div>
+
+<!-- Top Performing Videos -->
 <div class="card">
-    <h3>Top Performing Videos</h3>
+    <h3>Video Performance (Ranked by Views)</h3>
+    {% if videos %}
     <table>
         <thead>
             <tr>
+                <th>#</th>
                 <th>Title</th>
                 <th>Views</th>
                 <th>Likes</th>
-                <th>Impressions</th>
-                <th>CTR</th>
-                <th>Retention</th>
-                <th>Subs Gained</th>
+                <th>Uploaded</th>
+                <th>Link</th>
             </tr>
         </thead>
         <tbody>
-            {% for v in top_videos %}
+            {% for v in videos %}
             <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ (v.title or 'Untitled')[:50] }}{% if v.title and v.title|length > 50 %}...{% endif %}</td>
+                <td><strong>{{ v.views|fnum }}</strong></td>
+                <td>{{ v.likes|fnum }}</td>
+                <td>{{ v.uploaded_at[:10] if v.uploaded_at else '—' }}</td>
                 <td>
                     {% if v.youtube_url %}
-                    <a href="{{ v.youtube_url }}" target="_blank">{{ v.title[:45] }}{% if v.title and v.title|length > 45 %}...{% endif %}</a>
-                    {% else %}
-                    {{ (v.title or 'Untitled')[:45] }}
+                    <a href="{{ v.youtube_url }}" target="_blank" class="btn-sm btn-yt">YouTube</a>
                     {% endif %}
                 </td>
-                <td>{{ v.views|fnum }}</td>
-                <td>{{ v.likes|fnum }}</td>
-                <td>{{ v.impressions|fnum }}</td>
-                <td>{{ v.ctr|fpct }}</td>
-                <td>{{ v.avg_view_percentage|fpct }}</td>
-                <td>+{{ v.subscribers_gained|fnum }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+    {% else %}
+    <div class="empty-state">No uploaded videos yet.</div>
+    {% endif %}
 </div>
-{% endif %}
 
-<!-- Daily history -->
-{% if history %}
+<!-- AI Intelligence Insights -->
 <div class="card">
-    <h3>Daily History</h3>
+    <h3>AI Intelligence Insights</h3>
+    <p class="hint">AI analyzes your video performance and suggests improvements</p>
+    <button class="btn btn-outline" id="btn-insights" onclick="generateInsights()" style="margin-bottom: 16px;">Generate AI Insights</button>
+    <div id="insights-loading" style="display:none;" class="loading">Analyzing performance data...</div>
+    <div id="insights-content">
+        {% if insights %}
+        <div class="recommendations">
+            {% for line in insights.split('\n') %}
+            {% if line.strip() %}
+            <p class="rec-item">{{ line }}</p>
+            {% endif %}
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">Click "Generate AI Insights" to get data-driven recommendations.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- SEO Learning -->
+<div class="card">
+    <h3>SEO Learning</h3>
+    <p class="hint">What the system has learned about your channel's SEO performance</p>
+
+    {% if best_titles %}
+    <h4>Best Performing Title Patterns</h4>
+    <div class="recommendations">
+        {% for t in best_titles %}
+        <p class="rec-item">{{ t.title[:60] }} — <strong>{{ t.views }} views</strong></p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <h4 style="margin-top: 16px;">SEO Rules Being Applied</h4>
+    <div class="recommendations">
+        <p class="rec-item">Stacking 2-3 search phrases with | separators in titles</p>
+        <p class="rec-item">Including "Nursery Rhymes" or "Kids Songs" in every title</p>
+        <p class="rec-item">Front-loading description with keywords (first 2 lines shown in search)</p>
+        <p class="rec-item">25-30 tags per video mixing broad + specific keywords</p>
+        <p class="rec-item">Learning from top performing videos to optimize future SEO</p>
+    </div>
+</div>
+
+<!-- Upload History -->
+<div class="card">
+    <h3>Upload History</h3>
+    {% if daily_stats %}
     <table>
         <thead>
             <tr>
                 <th>Date</th>
-                <th>Views</th>
-                <th>Subscribers</th>
-                <th>Watch Time (hrs)</th>
-                <th>Videos Published</th>
-                <th>Revenue</th>
+                <th>Videos Uploaded</th>
+                <th>Total Views</th>
             </tr>
         </thead>
         <tbody>
-            {% for h in history %}
+            {% for d in daily_stats %}
             <tr>
-                <td>{{ h.date }}</td>
-                <td>{{ h.total_views|fnum }}</td>
-                <td>{{ h.subscribers|fnum }}</td>
-                <td>{{ '%.1f' % (h.watch_time_hours or 0) }}</td>
-                <td>{{ h.videos_published }}</td>
-                <td>${{ '%.2f' % (h.revenue_usd or 0) }}</td>
+                <td>{{ d.date }}</td>
+                <td>{{ d.count }}</td>
+                <td>{{ d.views|fnum }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+    {% else %}
+    <div class="empty-state">No upload history yet.</div>
+    {% endif %}
 </div>
-{% endif %}
 
-{% if not strategy and not top_videos and not history %}
-<div class="empty-state">No analytics data yet. Upload videos and run the intelligence engine to see insights here.</div>
-{% endif %}
+<script>
+async function refreshAnalytics() {
+    document.getElementById('btn-refresh').disabled = true;
+    document.getElementById('refresh-status').textContent = 'Fetching from YouTube...';
+    try {
+        const resp = await fetch('/api/analytics/collect', {method: 'POST'});
+        const data = await resp.json();
+        document.getElementById('refresh-status').textContent = 'Updated ' + data.updated + ' videos. Refreshing page...';
+        setTimeout(() => location.reload(), 1000);
+    } catch(e) {
+        document.getElementById('refresh-status').textContent = 'Error: ' + e;
+        document.getElementById('btn-refresh').disabled = false;
+    }
+}
+
+async function generateInsights() {
+    document.getElementById('btn-insights').disabled = true;
+    document.getElementById('insights-loading').style.display = 'block';
+    document.getElementById('insights-content').innerHTML = '';
+    try {
+        const resp = await fetch('/api/analytics/generate-insights', {method: 'POST'});
+        const data = await resp.json();
+        document.getElementById('insights-loading').style.display = 'none';
+        let html = '<div class="recommendations">';
+        data.insights.split('\n').forEach(line => {
+            if (line.trim()) html += '<p class="rec-item">' + line + '</p>';
+        });
+        html += '</div>';
+        document.getElementById('insights-content').innerHTML = html;
+    } catch(e) {
+        document.getElementById('insights-loading').style.display = 'none';
+        document.getElementById('insights-content').innerHTML = '<p style="color:var(--red)">Error: ' + e + '</p>';
+    }
+    document.getElementById('btn-insights').disabled = false;
+}
+</script>
 {% endblock %}
