@@ -303,7 +303,7 @@ def _default_channel_id(channels: list) -> int:
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, _user: str = Depends(verify_credentials)):
     channels = _get_channels()
-    channel_id = int(request.query_params.get("channel", _default_channel_id(channels)))
+    channel_id = int(request.query_params.get("channel") or _default_channel_id(channels))
 
     stats = _get_channel_stats(channel_id)
     videos = _get_recent_videos(channel_id)
@@ -329,7 +329,7 @@ async def dashboard(request: Request, _user: str = Depends(verify_credentials)):
 @app.get("/videos", response_class=HTMLResponse)
 async def videos_page(request: Request, _user: str = Depends(verify_credentials)):
     channels = _get_channels()
-    channel_id = int(request.query_params.get("channel", _default_channel_id(channels)))
+    channel_id = int(request.query_params.get("channel") or _default_channel_id(channels))
     videos = _get_recent_videos(channel_id, limit=100)
 
     return templates.TemplateResponse("videos.html", {
@@ -343,7 +343,7 @@ async def videos_page(request: Request, _user: str = Depends(verify_credentials)
 @app.get("/analytics", response_class=HTMLResponse)
 async def analytics_page(request: Request):
     channels = _get_channels()
-    channel_id = int(request.query_params.get("channel", _default_channel_id(channels)))
+    channel_id = int(request.query_params.get("channel") or _default_channel_id(channels))
 
     db = get_db()
 
@@ -424,7 +424,7 @@ async def analytics_page(request: Request):
 @app.get("/errors", response_class=HTMLResponse)
 async def errors_page(request: Request, _user: str = Depends(verify_credentials)):
     channels = _get_channels()
-    channel_id = int(request.query_params.get("channel", _default_channel_id(channels)))
+    channel_id = int(request.query_params.get("channel") or _default_channel_id(channels))
     errors = _get_errors(channel_id, limit=50)
 
     return templates.TemplateResponse("errors.html", {
@@ -1270,6 +1270,7 @@ async def api_generate_seo(request: Request):
         analytics_context += "TOP PERFORMING TITLES (learn from these patterns):\n"
         analytics_context += "\n".join(best_titles[:5]) + "\n\n"
     if strategy:
+        strategy = dict(strategy)
         analytics_context += f"CHANNEL STRATEGY INSIGHTS:\n"
         if strategy.get("recommendation_notes"):
             analytics_context += strategy["recommendation_notes"] + "\n"
@@ -1372,6 +1373,14 @@ async def api_save_draft(request: Request):
 async def drafts_page(request: Request):
     """Show saved drafts."""
     db = get_db()
+    db.execute("""CREATE TABLE IF NOT EXISTS drafts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        video_id INTEGER NOT NULL,
+        title TEXT, description TEXT, playlist TEXT, format TEXT,
+        yt_title TEXT, yt_description TEXT, yt_tags TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (video_id) REFERENCES videos(id)
+    )""")
     rows = db.execute(
         "SELECT d.*, v.video_path FROM drafts d "
         "JOIN videos v ON d.video_id=v.id "
@@ -1507,6 +1516,30 @@ async def api_publish(request: Request):
         create_short = False
 
     import re
+    from datetime import datetime, timezone, timedelta
+
+    # Calculate optimal premiere time
+    # Best slots: 10:00 UTC (India/UK afternoon) or 22:00 UTC (USA evening)
+    now = datetime.now(timezone.utc)
+    publish_at = None
+
+    if video_format != "short":  # Only schedule long-form, Shorts go live immediately
+        slot_10 = now.replace(hour=10, minute=0, second=0, microsecond=0)
+        slot_22 = now.replace(hour=22, minute=0, second=0, microsecond=0)
+
+        # Find the next available slot at least 30 min from now
+        min_time = now + timedelta(minutes=30)
+        candidates = []
+        for slot in [slot_10, slot_22]:
+            if slot > min_time:
+                candidates.append(slot)
+            # Also check tomorrow's slots
+            tomorrow_slot = slot + timedelta(days=1)
+            candidates.append(tomorrow_slot)
+
+        candidates.sort()
+        publish_at = candidates[0].strftime("%Y-%m-%dT%H:%M:%S.0Z")
+        print(f"Scheduled premiere: {publish_at}")
 
     db = get_db()
     row = db.execute("SELECT video_path, title FROM videos WHERE id=?", (video_id,)).fetchone()
@@ -1564,9 +1597,15 @@ async def api_publish(request: Request):
         except Exception as e:
             print(f"Outro append failed: {e} — uploading without outro")
 
-    # Upload long-form
+    # Upload to YouTube (with scheduled premiere for long-form)
     from modules.uploader.youtube_uploader import upload
-    yt_id = upload(video_path=final_video_path, seo_result=seo, category="education", made_for_kids=True)
+    yt_id = upload(
+        video_path=final_video_path,
+        seo_result=seo,
+        category="education",
+        made_for_kids=True,
+        publish_at=publish_at,
+    )
 
     if not yt_id:
         db.close()
@@ -1611,11 +1650,15 @@ async def api_publish(request: Request):
 
     db.close()
 
-    return {
+    result = {
         "youtube_id": yt_id,
         "youtube_url": yt_url,
         "short_url": short_url,
     }
+    if publish_at:
+        result["scheduled_at"] = publish_at
+        result["message"] = f"Video scheduled as premiere at {publish_at} UTC"
+    return result
 
 
 # ── Analytics Learning System ──────────────────────────────────────────────

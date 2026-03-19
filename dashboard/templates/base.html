@@ -14,13 +14,13 @@
         </div>
         <a href="/upload" class="nav-create">+ Upload Video</a>
         <ul class="nav-links">
-            <li><a href="/?channel={{ active_channel_id }}" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a></li>
+            <li><a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a></li>
             <li><a href="/upload" class="{% if request.url.path == '/upload' %}active{% endif %}">Upload</a></li>
             <li><a href="/drafts" class="{% if request.url.path == '/drafts' %}active{% endif %}">Drafts</a></li>
-            <li><a href="/videos?channel={{ active_channel_id }}" class="{% if request.url.path == '/videos' %}active{% endif %}">Videos</a></li>
-            <li><a href="/analytics?channel={{ active_channel_id }}" class="{% if request.url.path == '/analytics' %}active{% endif %}">Analytics</a></li>
+            <li><a href="/videos" class="{% if request.url.path == '/videos' %}active{% endif %}">Videos</a></li>
+            <li><a href="/analytics" class="{% if request.url.path == '/analytics' %}active{% endif %}">Analytics</a></li>
             <li><a href="/gallery" class="{% if request.url.path == '/gallery' %}active{% endif %}">Gallery</a></li>
-            <li><a href="/errors?channel={{ active_channel_id }}" class="{% if request.url.path == '/errors' %}active{% endif %}">Errors</a></li>
+            <li><a href="/errors" class="{% if request.url.path == '/errors' %}active{% endif %}">Errors</a></li>
             <li><a href="/logout" class="{% if request.url.path == '/logout' %}active{% endif %}">Logout</a></li>
         </ul>
         {% if channels|length > 1 %}

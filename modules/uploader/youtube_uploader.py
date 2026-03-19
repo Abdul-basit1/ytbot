@@ -91,6 +91,7 @@ def upload(
     category: str = "trending",
     privacy: str = "public",
     made_for_kids: bool = False,
+    publish_at: str | None = None,
 ) -> Optional[str]:
     """
     Upload a video to YouTube with full metadata.
@@ -169,7 +170,7 @@ def upload(
             "defaultAudioLanguage": default_lang,
         },
         "status": {
-            "privacyStatus": privacy,
+            "privacyStatus": "private" if publish_at else privacy,
             "selfDeclaredMadeForKids": made_for_kids,
             "madeForKids": made_for_kids,
         },
@@ -201,6 +202,25 @@ def upload(
         video_id = response["id"]
         logger.info(f"Upload complete! Video ID: {video_id}")
         logger.info(f"URL: https://www.youtube.com/watch?v={video_id}")
+
+        # Schedule premiere if publish_at is set
+        if publish_at:
+            try:
+                youtube.videos().update(
+                    part="status",
+                    body={
+                        "id": video_id,
+                        "status": {
+                            "privacyStatus": "private",
+                            "publishAt": publish_at,
+                            "selfDeclaredMadeForKids": made_for_kids,
+                            "madeForKids": made_for_kids,
+                        },
+                    },
+                ).execute()
+                logger.info(f"Scheduled premiere at: {publish_at}")
+            except Exception as e:
+                logger.warning(f"Failed to schedule premiere: {e} — video is private, publish manually")
 
         # Set thumbnail if provided
         if thumbnail_path and thumbnail_path.exists():

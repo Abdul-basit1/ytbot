@@ -428,10 +428,15 @@
             if (!resp.ok) throw new Error(data.error || 'YouTube upload failed');
 
             const url = data.youtube_url || data.url || '#';
-            showStatus(
-                'Video published successfully! <a href="' + url + '" target="_blank" style="color: var(--green); font-weight: 700;">View on YouTube</a>',
-                'success'
-            );
+            let msg = 'Video uploaded! <a href="' + url + '" target="_blank" style="color: var(--green); font-weight: 700;">View on YouTube</a>';
+            if (data.scheduled_at) {
+                const dt = new Date(data.scheduled_at);
+                msg += '<br><br>Scheduled as premiere: <strong>' + dt.toLocaleString() + ' (your time)</strong>';
+            }
+            if (data.short_url && !data.short_url.startsWith('Short creation')) {
+                msg += '<br>Short: <a href="' + data.short_url + '" target="_blank" style="color: var(--accent);">View Short</a>';
+            }
+            showStatus(msg, 'success');
             document.getElementById('btn-publish').textContent = 'Published';
         } catch (err) {
             showStatus('Publish error: ' + err.message, 'error');
