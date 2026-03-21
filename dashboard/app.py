@@ -1828,6 +1828,167 @@ async def api_analytics_insights(request: Request):
     }
 
 
+# ── Trending Research ────────────────────────────────────────────────────────
+
+@app.get("/trending", response_class=HTMLResponse)
+async def trending_page(request: Request, _user: str = Depends(verify_credentials)):
+    channels = _get_channels()
+    channel_id = int(request.query_params.get("channel") or _default_channel_id(channels))
+    return templates.TemplateResponse("trending.html", {
+        "request": request,
+        "channels": channels,
+        "active_channel_id": channel_id,
+    })
+
+
+@app.post("/api/trending/research")
+async def api_trending_research(request: Request):
+    """Search YouTube for trending kids videos and analyze with GPT."""
+    from loguru import logger
+
+    try:
+        # ── 1. YouTube Search ────────────────────────────────────────────
+        from modules.uploader.youtube_uploader import _get_authenticated_service
+        youtube = _get_authenticated_service()
+
+        now = datetime.utcnow()
+        published_after = (now - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        all_videos = []
+
+        # Search in two categories: Music (10) and People & Blogs (22)
+        for cat_id in ["10", "22"]:
+            try:
+                search_resp = youtube.search().list(
+                    q="nursery rhymes kids songs",
+                    type="video",
+                    order="viewCount",
+                    publishedAfter=published_after,
+                    videoCategoryId=cat_id,
+                    maxResults=10,
+                    part="snippet",
+                ).execute()
+
+                for item in search_resp.get("items", []):
+                    snippet = item.get("snippet", {})
+                    vid_id = item.get("id", {}).get("videoId", "")
+                    all_videos.append({
+                        "video_id": vid_id,
+                        "title": snippet.get("title", ""),
+                        "channel": snippet.get("channelTitle", ""),
+                        "description": snippet.get("description", ""),
+                        "thumbnail": snippet.get("thumbnails", {}).get("high", {}).get("url", "")
+                                     or snippet.get("thumbnails", {}).get("medium", {}).get("url", ""),
+                        "published_at": snippet.get("publishedAt", ""),
+                    })
+            except Exception as e:
+                logger.warning(f"YouTube search failed for category {cat_id}: {e}")
+
+        if not all_videos:
+            return {"error": "No trending videos found. YouTube API may be unavailable or quota exceeded."}
+
+        # Deduplicate by video_id and take top 10
+        seen = set()
+        unique_videos = []
+        for v in all_videos:
+            if v["video_id"] not in seen:
+                seen.add(v["video_id"])
+                unique_videos.append(v)
+        unique_videos = unique_videos[:10]
+
+        # Get view counts via videos().list()
+        video_ids = [v["video_id"] for v in unique_videos if v["video_id"]]
+        if video_ids:
+            try:
+                stats_resp = youtube.videos().list(
+                    id=",".join(video_ids),
+                    part="statistics",
+                ).execute()
+
+                views_map = {}
+                for item in stats_resp.get("items", []):
+                    views_map[item["id"]] = int(item.get("statistics", {}).get("viewCount", 0))
+
+                for v in unique_videos:
+                    v["views"] = views_map.get(v["video_id"], 0)
+            except Exception as e:
+                logger.warning(f"Failed to fetch video statistics: {e}")
+                for v in unique_videos:
+                    v["views"] = 0
+
+        # Sort by views descending and keep top 5
+        unique_videos.sort(key=lambda x: x.get("views", 0), reverse=True)
+        top_videos = unique_videos[:5]
+
+        # ── 2. AI Analysis ───────────────────────────────────────────────
+        analysis = {}
+        try:
+            from openai import OpenAI
+            from config import OPENAI_API_KEY, OPENAI_MODEL
+            client = OpenAI(api_key=OPENAI_API_KEY)
+
+            video_summary = "\n".join([
+                f"{i+1}. \"{v['title']}\" by {v['channel']} — {v.get('views', 0):,} views\n   Desc: {v['description'][:200]}"
+                for i, v in enumerate(top_videos)
+            ])
+
+            resp = client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[{
+                    "role": "system",
+                    "content": (
+                        "You are a YouTube kids content strategist. Analyze trending kids videos "
+                        "and provide actionable insights for a kids channel called KiddoWorld. "
+                        "Respond in three clearly labeled sections:\n\n"
+                        "WHATS TRENDING:\n(3-5 bullet points about what makes these videos successful)\n\n"
+                        "CONTENT IDEAS:\n(5 specific video ideas with suggested titles)\n\n"
+                        "PROMPT SUGGESTIONS:\n(3-5 prompts for creating similar content — "
+                        "include music style, visual style, and topic suggestions)\n\n"
+                        "Use plain text with bullet points (- ). No markdown headers."
+                    ),
+                }, {
+                    "role": "user",
+                    "content": f"Top trending kids videos in the last 24 hours:\n\n{video_summary}\n\nAnalyze these and generate insights.",
+                }],
+                temperature=0.7,
+            )
+
+            raw = resp.choices[0].message.content or ""
+
+            # Parse sections
+            sections = {"whats_trending": "", "content_ideas": "", "prompt_suggestions": ""}
+            current = None
+            for line in raw.split("\n"):
+                upper = line.strip().upper().replace("'", "").replace(":", "")
+                if "WHATS TRENDING" in upper or "WHAT'S TRENDING" in upper or "WHATS TRENDING" in upper:
+                    current = "whats_trending"
+                    continue
+                elif "CONTENT IDEAS" in upper:
+                    current = "content_ideas"
+                    continue
+                elif "PROMPT SUGGESTIONS" in upper or "PROMPT SUGGESTION" in upper:
+                    current = "prompt_suggestions"
+                    continue
+                if current and line.strip():
+                    sections[current] += line + "\n"
+
+            # If parsing failed, dump everything into whats_trending
+            if not any(sections.values()):
+                sections["whats_trending"] = raw
+
+            analysis = sections
+
+        except Exception as e:
+            logger.error(f"AI analysis failed: {e}")
+            analysis = {"whats_trending": f"AI analysis unavailable: {e}", "content_ideas": "", "prompt_suggestions": ""}
+
+        return {"videos": top_videos, "analysis": analysis}
+
+    except Exception as e:
+        logger.error(f"Trending research failed: {e}")
+        return {"error": f"Failed to fetch trending data: {str(e)}"}
+
+
 # ── Runner ──────────────────────────────────────────────────────────────────
 
 def start_dashboard(host: str = "0.0.0.0", port: int | None = None):
