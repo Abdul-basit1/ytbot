@@ -45,7 +45,8 @@
                 <td style="display: flex; gap: 8px;">
                     {% if d.yt_title %}
                     <button class="btn btn-sm" style="background: #c4302b; color: white;"
-                            onclick="publishDraft({{ d.id }}, {{ d.video_id }}, '{{ d.yt_title|e }}', '{{ d.format }}')">
+                            data-draft-id="{{ d.id }}" data-title="{{ d.yt_title|e }}"
+                            onclick="publishDraft(this.dataset.draftId, this.dataset.title)">
                         Publish
                     </button>
                     {% endif %}
@@ -69,19 +70,28 @@
 {% endif %}
 
 <script>
-async function publishDraft(draftId, videoId, title, format) {
+async function publishDraft(draftId, title) {
     if (!confirm('Publish "' + title + '" to YouTube?')) return;
 
-    const resp = await fetch('/api/drafts/' + draftId + '/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-    });
-    const data = await resp.json();
-    if (data.youtube_url) {
-        alert('Published! ' + data.youtube_url);
-        location.reload();
-    } else {
-        alert('Error: ' + (data.error || 'Unknown error'));
+    try {
+        const resp = await fetch('/api/drafts/' + draftId + '/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        const text = await resp.text();
+        try {
+            const data = JSON.parse(text);
+            if (data.youtube_url) {
+                alert('Published! ' + data.youtube_url);
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        } catch (e) {
+            alert('Server error: ' + text.substring(0, 200));
+        }
+    } catch (e) {
+        alert('Network error: ' + e.message);
     }
 }
 

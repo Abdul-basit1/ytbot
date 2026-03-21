@@ -1519,26 +1519,54 @@ async def api_publish(request: Request):
     from datetime import datetime, timezone, timedelta
 
     # Calculate optimal premiere time
-    # Best slots: 10:00 UTC (India/UK afternoon) or 22:00 UTC (USA evening)
+    # Best slots: 10:00 UTC, 14:00 UTC, 18:00 UTC, 22:00 UTC (every 4 hours)
+    # If a slot is already taken, use the next one (4 hours later)
     now = datetime.now(timezone.utc)
     publish_at = None
 
     if video_format != "short":  # Only schedule long-form, Shorts go live immediately
-        slot_10 = now.replace(hour=10, minute=0, second=0, microsecond=0)
-        slot_22 = now.replace(hour=22, minute=0, second=0, microsecond=0)
+        db_sched = get_db()
 
-        # Find the next available slot at least 30 min from now
+        # Get all future scheduled times from DB
+        scheduled_rows = db_sched.execute(
+            "SELECT scheduled_at FROM uploads WHERE scheduled_at IS NOT NULL AND scheduled_at > ?",
+            (now.strftime("%Y-%m-%dT%H:%M:%S"),),
+        ).fetchall()
+        scheduled_times = set()
+        for r in scheduled_rows:
+            try:
+                scheduled_times.add(r["scheduled_at"][:13])  # Compare up to hour
+            except (KeyError, TypeError):
+                pass
+        db_sched.close()
+
+        # Generate candidate slots for next 3 days (every 4 hours starting at 10:00)
         min_time = now + timedelta(minutes=30)
         candidates = []
-        for slot in [slot_10, slot_22]:
-            if slot > min_time:
-                candidates.append(slot)
-            # Also check tomorrow's slots
-            tomorrow_slot = slot + timedelta(days=1)
-            candidates.append(tomorrow_slot)
+        base = now.replace(hour=10, minute=0, second=0, microsecond=0)
+        if base < now:
+            base = base  # keep today's 10:00 even if past
+        for day_offset in range(3):
+            for hour in [10, 14, 18, 22]:
+                slot = (base + timedelta(days=day_offset)).replace(hour=hour)
+                if slot > min_time:
+                    # Check if this slot is already taken
+                    slot_key = slot.strftime("%Y-%m-%dT%H")
+                    if slot_key not in scheduled_times:
+                        candidates.append(slot)
 
-        candidates.sort()
-        publish_at = candidates[0].strftime("%Y-%m-%dT%H:%M:%S.0Z")
+        if candidates:
+            candidates.sort()
+            publish_at = candidates[0].strftime("%Y-%m-%dT%H:%M:%S.0Z")
+        else:
+            # Fallback: 4 hours after the latest scheduled video
+            if scheduled_times:
+                latest = max(scheduled_times)
+                fallback = datetime.fromisoformat(latest + ":00:00+00:00") + timedelta(hours=4)
+                publish_at = fallback.strftime("%Y-%m-%dT%H:%M:%S.0Z")
+            else:
+                publish_at = (now + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S.0Z")
+
         print(f"Scheduled premiere: {publish_at}")
 
     db = get_db()
@@ -1613,12 +1641,16 @@ async def api_publish(request: Request):
 
     yt_url = f"https://www.youtube.com/watch?v={yt_id}"
 
-    # Update DB
+    # Update DB — save scheduled_at for future staggering
+    try:
+        db.execute("ALTER TABLE uploads ADD COLUMN scheduled_at TEXT")
+    except Exception:
+        pass
     db.execute("UPDATE videos SET status='uploaded' WHERE id=?", (video_id,))
     db.execute(
-        "INSERT INTO uploads (video_id, channel_id, youtube_video_id, youtube_url, title) "
-        "VALUES (?, 2, ?, ?, ?)",
-        (video_id, yt_id, yt_url, title),
+        "INSERT INTO uploads (video_id, channel_id, youtube_video_id, youtube_url, title, scheduled_at) "
+        "VALUES (?, 2, ?, ?, ?, ?)",
+        (video_id, yt_id, yt_url, title, publish_at),
     )
     db.commit()
 
