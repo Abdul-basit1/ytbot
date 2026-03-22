@@ -46,7 +46,11 @@
                 {% endif %}
             </td>
             <td>
-                {% if v.status in ('failed', 'upload_failed') %}
+                {% if v.status == 'uploaded_local' and v.video_path %}
+                <button class="btn-sm btn-retry" onclick="retryUpload({{ v.id }}, this)">Upload to YT</button>
+                {% elif v.status in ('failed', 'upload_failed') and v.video_path %}
+                <button class="btn-sm btn-retry" onclick="retryUpload({{ v.id }}, this)">Retry Upload</button>
+                {% elif v.status in ('failed', 'upload_failed') %}
                 <button class="btn-sm btn-retry" onclick="retryVideo({{ v.id }})">Retry</button>
                 {% elif v.status == 'retry' %}
                 <span class="badge badge--retry">Queued</span>
@@ -95,6 +99,30 @@ function previewVideo(videoId) {
 function closeModal() {
     document.getElementById('videoModal').style.display = 'none';
     document.getElementById('previewPlayer').pause();
+}
+
+function retryUpload(videoId, btn) {
+    if (!confirm('Upload this video to YouTube with SEO, thumbnail, and Short?')) return;
+    btn.disabled = true;
+    btn.textContent = 'Uploading...';
+    fetch('/api/videos/' + videoId + '/retry-upload', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                alert('Error: ' + data.error);
+                btn.textContent = 'Retry Upload';
+                btn.disabled = false;
+            } else {
+                const badge = document.getElementById('status-' + videoId);
+                if (badge) { badge.textContent = 'uploaded'; badge.className = 'badge badge--uploaded'; }
+                let msg = 'Uploaded! ' + data.youtube_url;
+                if (data.short_url) msg += '\nShort: ' + data.short_url;
+                if (data.scheduled_at) msg += '\nPremiere: ' + data.scheduled_at;
+                alert(msg);
+                btn.textContent = 'Done';
+            }
+        })
+        .catch(e => { alert('Failed: ' + e); btn.textContent = 'Retry Upload'; btn.disabled = false; });
 }
 
 function retryVideo(videoId) {

@@ -15,7 +15,7 @@ import secrets
 import hashlib
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -201,7 +201,7 @@ def _get_recent_videos(channel_id: int, limit: int = 20) -> List[Dict]:
     db = get_db()
     rows = db.execute("""
         SELECT v.id, v.title, v.status, v.format, v.duration_seconds, v.cost_usd, v.created_at,
-               u.youtube_video_id, u.youtube_url, u.views, u.likes
+               v.video_path, u.youtube_video_id, u.youtube_url, u.views, u.likes
         FROM videos v
         LEFT JOIN uploads u ON u.video_id = v.id
         WHERE v.channel_id=?
@@ -1508,6 +1508,19 @@ async def api_publish(request: Request):
     tags = body.get("tags", [])
     create_short = body.get("create_short", True)
     video_format = body.get("format", "long")  # "long" or "short"
+    channel = body.get("channel", "kiddoworld")  # "kiddoworld" or "oddlyperfect"
+
+    # Channel-specific settings
+    CHANNEL_TOKEN_MAP = {
+        "kiddoworld": "token_kiddoworld.json",
+        "oddlyperfect": "token_oddlyperfect.json",
+    }
+    token_file = CHANNEL_TOKEN_MAP.get(channel, "token_kiddoworld.json")
+    is_kids_channel = channel == "kiddoworld"
+
+    # OddlyPerfect: no made_for_kids, no auto-Short creation
+    if not is_kids_channel:
+        create_short = False
 
     # For Shorts: add #Shorts to title, skip outro, skip auto-short creation
     if video_format == "short":
@@ -1627,17 +1640,32 @@ async def api_publish(request: Request):
 
     # Upload to YouTube (with scheduled premiere for long-form)
     from modules.uploader.youtube_uploader import upload
-    yt_id = upload(
-        video_path=final_video_path,
-        seo_result=seo,
-        category="education",
-        made_for_kids=True,
-        publish_at=publish_at,
-    )
+    try:
+        yt_id = upload(
+            video_path=final_video_path,
+            seo_result=seo,
+            category="education",
+            made_for_kids=is_kids_channel,
+            publish_at=publish_at,
+            token_file=token_file,
+        )
+    except Exception as e:
+        err_msg = str(e)
+        db.close()
+        if "uploadLimitExceeded" in err_msg:
+            return JSONResponse(status_code=429, content={"error": "YouTube daily upload limit reached. Try again tomorrow."})
+        elif "invalid_grant" in err_msg or "token" in err_msg.lower():
+            return JSONResponse(status_code=401, content={"error": "YouTube token expired. Re-authenticate on Mac."})
+        elif "invalidTags" in err_msg:
+            return JSONResponse(status_code=400, content={"error": "Invalid tags detected. Try regenerating SEO."})
+        elif "quota" in err_msg.lower():
+            return JSONResponse(status_code=429, content={"error": "YouTube API quota exceeded. Try again later."})
+        else:
+            return JSONResponse(status_code=500, content={"error": f"YouTube upload failed: {err_msg[:200]}"})
 
     if not yt_id:
         db.close()
-        return {"error": "YouTube upload failed — check token or tags"}
+        return JSONResponse(status_code=500, content={"error": "YouTube upload failed — no video ID returned"})
 
     yt_url = f"https://www.youtube.com/watch?v={yt_id}"
 
@@ -1646,15 +1674,18 @@ async def api_publish(request: Request):
         db.execute("ALTER TABLE uploads ADD COLUMN scheduled_at TEXT")
     except Exception:
         pass
+    # Determine channel_id for DB (KiddoWorld=2, OddlyPerfect=3)
+    upload_channel_id = 2 if is_kids_channel else 3
+
     db.execute("UPDATE videos SET status='uploaded' WHERE id=?", (video_id,))
     db.execute(
         "INSERT INTO uploads (video_id, channel_id, youtube_video_id, youtube_url, title, scheduled_at) "
-        "VALUES (?, 2, ?, ?, ?, ?)",
-        (video_id, yt_id, yt_url, title, publish_at),
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (video_id, upload_channel_id, yt_id, yt_url, title, publish_at),
     )
     db.commit()
 
-    # Auto-create Short
+    # Auto-create Short (only for KiddoWorld long-form)
     short_url = None
     if create_short:
         try:
@@ -1673,7 +1704,8 @@ async def api_publish(request: Request):
                     video_path=Path(short_path),
                     seo_result=short_seo_obj,
                     category="education",
-                    made_for_kids=True,
+                    made_for_kids=is_kids_channel,
+                    token_file=token_file,
                 )
                 if short_yt_id:
                     short_url = f"https://www.youtube.com/watch?v={short_yt_id}"
@@ -1690,6 +1722,209 @@ async def api_publish(request: Request):
     if publish_at:
         result["scheduled_at"] = publish_at
         result["message"] = f"Video scheduled as premiere at {publish_at} UTC"
+    return result
+
+
+# ── Retry Upload ──────────────────────────────────────────────────────────
+
+@app.post("/api/videos/{video_id}/retry-upload")
+async def api_retry_upload(video_id: int, request: Request):
+    """Re-upload a local video to YouTube with full SEO, thumbnail, Short."""
+    import re
+    from pathlib import Path
+    from datetime import datetime, timedelta, timezone
+
+    # Parse channel from request body (default to kiddoworld for backward compat)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    channel = body.get("channel", "kiddoworld")
+    CHANNEL_TOKEN_MAP = {
+        "kiddoworld": "token_kiddoworld.json",
+        "oddlyperfect": "token_oddlyperfect.json",
+    }
+    token_file = CHANNEL_TOKEN_MAP.get(channel, "token_kiddoworld.json")
+    is_kids_channel = channel == "kiddoworld"
+
+    db = get_db()
+    row = db.execute("SELECT id, title, video_path, status FROM videos WHERE id=?", (video_id,)).fetchone()
+    if not row:
+        db.close()
+        return JSONResponse(status_code=404, content={"error": "Video not found"})
+
+    video_path = Path(row["video_path"]) if row["video_path"] else None
+    if not video_path or not video_path.exists():
+        db.close()
+        return JSONResponse(status_code=404, content={"error": "Video file not found on disk"})
+
+    title = row["title"] or "KiddoWorld Kids Video"
+
+    # Generate SEO
+    try:
+        seo_resp = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": KIDS_SEO_SYSTEM_PROMPT},
+                {"role": "user", "content": f"Generate YouTube SEO for a KiddoWorld kids video titled: {title}"},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.7,
+        )
+        import json as json_mod
+        seo_data = json_mod.loads(seo_resp.choices[0].message.content)
+    except Exception as e:
+        seo_data = {"title": title, "description": "Fun kids video from KiddoWorld!", "tags": ["kids songs", "nursery rhymes", "KiddoWorld"]}
+
+    yt_title = seo_data.get("title", title)[:100]
+    description = seo_data.get("description", "")
+    tags_raw = seo_data.get("tags", [])
+
+    # Sanitize tags
+    clean_tags = []
+    total_chars = 0
+    for t in tags_raw:
+        t = t.encode("ascii", errors="ignore").decode("ascii").strip()
+        t = re.sub(r"[^a-zA-Z0-9 -]", "", t).strip()
+        if len(t) < 2 or len(t) > 30:
+            continue
+        if total_chars + len(t) > 450:
+            break
+        clean_tags.append(t)
+        total_chars += len(t)
+
+    class SEOObj:
+        pass
+    seo = SEOObj()
+    seo.title = yt_title
+    seo.description = description
+    seo.tags = clean_tags
+    seo.hashtags = []
+    seo.language = "en"
+    seo.playlist_category = "Kids Education"
+
+    # Schedule premiere (stagger 4h from existing)
+    now = datetime.now(timezone.utc)
+    publish_at = None
+    try:
+        scheduled_rows = db.execute(
+            "SELECT scheduled_at FROM uploads WHERE scheduled_at IS NOT NULL AND scheduled_at > ?",
+            (now.strftime("%Y-%m-%dT%H:%M:%S"),),
+        ).fetchall()
+        scheduled_times = set()
+        for r2 in scheduled_rows:
+            try:
+                scheduled_times.add(r2["scheduled_at"][:13])
+            except (KeyError, TypeError):
+                pass
+
+        min_time = now + timedelta(minutes=30)
+        base = now.replace(hour=10, minute=0, second=0, microsecond=0)
+        candidates = []
+        for day_offset in range(3):
+            for hour in [10, 14, 18, 22]:
+                slot = (base + timedelta(days=day_offset)).replace(hour=hour)
+                if slot > min_time:
+                    slot_key = slot.strftime("%Y-%m-%dT%H")
+                    if slot_key not in scheduled_times:
+                        candidates.append(slot)
+        if candidates:
+            publish_at = candidates[0].strftime("%Y-%m-%dT%H:%M:%S.0Z")
+    except Exception:
+        pass
+
+    # Append outro
+    outro_path = Path(BASE_DIR) / "assets" / "templates" / "outro.mp4"
+    final_video_path = video_path
+    if outro_path.exists():
+        try:
+            import subprocess
+            merged = video_path.parent / f"final_{video_path.stem}.mp4"
+            concat_list = video_path.parent / "concat_list.txt"
+            concat_list.write_text(f"file '{video_path}'\nfile '{outro_path}'\n")
+            subprocess.run(
+                ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_list), "-c", "copy", str(merged)],
+                capture_output=True, timeout=120,
+            )
+            if merged.exists() and merged.stat().st_size > video_path.stat().st_size:
+                final_video_path = merged
+            concat_list.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    # Upload to YouTube
+    from modules.uploader.youtube_uploader import upload
+    try:
+        yt_id = upload(
+            video_path=final_video_path,
+            seo_result=seo,
+            category="education",
+            made_for_kids=is_kids_channel,
+            publish_at=publish_at,
+            token_file=token_file,
+        )
+    except Exception as e:
+        err_msg = str(e)
+        db.close()
+        if "uploadLimitExceeded" in err_msg:
+            return JSONResponse(status_code=429, content={"error": "YouTube daily upload limit reached. Try again tomorrow."})
+        elif "invalid_grant" in err_msg or "token" in err_msg.lower():
+            return JSONResponse(status_code=401, content={"error": "YouTube token expired. Re-authenticate."})
+        else:
+            return JSONResponse(status_code=500, content={"error": f"Upload failed: {err_msg[:200]}"})
+
+    if not yt_id:
+        db.close()
+        return JSONResponse(status_code=500, content={"error": "Upload failed — no video ID returned"})
+
+    yt_url = f"https://www.youtube.com/watch?v={yt_id}"
+
+    # Update DB
+    retry_channel_id = 2 if is_kids_channel else 3
+    db.execute("UPDATE videos SET status='uploaded' WHERE id=?", (video_id,))
+    db.execute(
+        "INSERT INTO uploads (video_id, channel_id, youtube_video_id, youtube_url, title, scheduled_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (video_id, retry_channel_id, yt_id, yt_url, yt_title, publish_at),
+    )
+    db.commit()
+
+    # Auto-create Short (only for KiddoWorld)
+    short_url = None
+    if is_kids_channel:
+        try:
+            from modules.shorts_maker import create as make_short
+            short_result = make_short(str(video_path), kids=True)
+            short_path = str(short_result["path"]) if short_result else None
+            if short_path and Path(short_path).exists():
+                short_seo = SEOObj()
+                short_seo.title = yt_title[:70] + " #Shorts"
+                short_seo.description = description[:200]
+                short_seo.tags = clean_tags[:10]
+                short_seo.hashtags = []
+                short_seo.language = "en"
+                short_seo.playlist_category = "Kids Education"
+                short_yt_id = upload(
+                    video_path=Path(short_path),
+                    seo_result=short_seo,
+                    category="education",
+                    made_for_kids=True,
+                    token_file=token_file,
+                )
+                if short_yt_id:
+                    short_url = f"https://www.youtube.com/watch?v={short_yt_id}"
+                    db.execute(
+                        "INSERT INTO uploads (video_id, channel_id, youtube_video_id, youtube_url, title) VALUES (?, ?, ?, ?, ?)",
+                        (video_id, retry_channel_id, short_yt_id, short_url, yt_title[:70] + " #Shorts"),
+                    )
+                    db.commit()
+        except Exception:
+            pass
+
+    db.close()
+
+    result = {"youtube_url": yt_url, "short_url": short_url}
+    if publish_at:
+        result["scheduled_at"] = publish_at
     return result
 
 
@@ -1987,6 +2222,187 @@ async def api_trending_research(request: Request):
     except Exception as e:
         logger.error(f"Trending research failed: {e}")
         return {"error": f"Failed to fetch trending data: {str(e)}"}
+
+
+# ── Trending Shorts Research ──────────────────────────────────────────────
+
+@app.get("/trending-shorts", response_class=HTMLResponse)
+async def trending_shorts_page(request: Request, _user: str = Depends(verify_credentials)):
+    channels = _get_channels()
+    channel_id = int(request.query_params.get("channel") or _default_channel_id(channels))
+    return templates.TemplateResponse("trending_shorts.html", {
+        "request": request,
+        "channels": channels,
+        "active_channel_id": channel_id,
+    })
+
+
+@app.post("/api/trending/shorts")
+async def api_trending_shorts(request: Request):
+    """Search YouTube for trending shorts on any topic and analyze with GPT."""
+    from loguru import logger
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    query = body.get("query", "satisfying process oddly satisfying")
+
+    try:
+        # ── 1. YouTube Search for Shorts ────────────────────────────────
+        from modules.uploader.youtube_uploader import _get_authenticated_service
+        youtube = _get_authenticated_service()
+
+        now = datetime.utcnow()
+        published_after = (now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        search_resp = youtube.search().list(
+            q=query,
+            type="video",
+            order="viewCount",
+            publishedAfter=published_after,
+            videoDuration="short",  # Under 4 minutes — we'll filter further by stats
+            maxResults=20,
+            part="snippet",
+        ).execute()
+
+        video_ids = []
+        snippet_map = {}
+        for item in search_resp.get("items", []):
+            vid_id = item.get("id", {}).get("videoId", "")
+            if vid_id:
+                video_ids.append(vid_id)
+                snippet = item.get("snippet", {})
+                snippet_map[vid_id] = {
+                    "video_id": vid_id,
+                    "title": snippet.get("title", ""),
+                    "channel": snippet.get("channelTitle", ""),
+                    "description": snippet.get("description", ""),
+                    "thumbnail": (
+                        snippet.get("thumbnails", {}).get("high", {}).get("url", "")
+                        or snippet.get("thumbnails", {}).get("medium", {}).get("url", "")
+                    ),
+                    "published_at": snippet.get("publishedAt", ""),
+                }
+
+        if not video_ids:
+            return {"error": "No trending shorts found for this query. Try different keywords."}
+
+        # Get stats + duration for all found videos
+        stats_resp = youtube.videos().list(
+            id=",".join(video_ids[:20]),
+            part="statistics,contentDetails",
+        ).execute()
+
+        videos = []
+        for item in stats_resp.get("items", []):
+            vid_id = item["id"]
+            stats = item.get("statistics", {})
+            content = item.get("contentDetails", {})
+            duration_str = content.get("duration", "")
+
+            # Parse duration to seconds for filtering (keep only < 60s)
+            import re as _re
+            dur_match = _re.match(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", duration_str)
+            if dur_match:
+                h = int(dur_match.group(1) or 0)
+                m = int(dur_match.group(2) or 0)
+                s = int(dur_match.group(3) or 0)
+                total_seconds = h * 3600 + m * 60 + s
+                if total_seconds > 60:
+                    continue  # Skip non-shorts
+
+            if vid_id in snippet_map:
+                entry = snippet_map[vid_id].copy()
+                entry["views"] = int(stats.get("viewCount", 0))
+                entry["likes"] = int(stats.get("likeCount", 0))
+                entry["duration"] = duration_str
+                videos.append(entry)
+
+        # Sort by views and take top 10
+        videos.sort(key=lambda x: x.get("views", 0), reverse=True)
+        top_videos = videos[:10]
+
+        if not top_videos:
+            return {"error": "No shorts (under 60s) found for this query. Try broader keywords."}
+
+        # ── 2. AI Analysis of top 5 ────────────────────────────────────
+        analysis = {}
+        try:
+            from openai import OpenAI
+            from config import OPENAI_API_KEY, OPENAI_MODEL
+            client = OpenAI(api_key=OPENAI_API_KEY)
+
+            video_summary = "\n".join([
+                f"{i+1}. \"{v['title']}\" by {v['channel']} — {v.get('views', 0):,} views\n   Desc: {v['description'][:200]}"
+                for i, v in enumerate(top_videos[:5])
+            ])
+
+            resp = client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[{
+                    "role": "system",
+                    "content": (
+                        "You are a YouTube Shorts viral content strategist. "
+                        "Analyze trending short-form videos and provide actionable insights. "
+                        "Respond in three clearly labeled sections:\n\n"
+                        "VIRAL FACTORS:\n(3-5 bullet points about what makes these shorts go viral — "
+                        "hooks, pacing, visual style, audio choices, etc.)\n\n"
+                        "CONTENT IDEAS:\n(5 specific short video ideas with suggested titles, "
+                        "each under 60 seconds, inspired by the trending content)\n\n"
+                        "SUGGESTED TITLES:\n(5 catchy titles + brief 1-line descriptions "
+                        "optimized for YouTube Shorts discovery)\n\n"
+                        "Use plain text with bullet points (- ). No markdown headers."
+                    ),
+                }, {
+                    "role": "user",
+                    "content": (
+                        f"Search query: \"{query}\"\n\n"
+                        f"Top trending shorts in the last 7 days:\n\n{video_summary}\n\n"
+                        "Analyze these and generate insights for creating viral shorts."
+                    ),
+                }],
+                temperature=0.7,
+            )
+
+            raw = resp.choices[0].message.content or ""
+
+            # Parse sections
+            sections = {"viral_factors": "", "content_ideas": "", "suggested_titles": ""}
+            current = None
+            for line in raw.split("\n"):
+                upper = line.strip().upper().replace(":", "")
+                if "VIRAL FACTOR" in upper:
+                    current = "viral_factors"
+                    continue
+                elif "CONTENT IDEA" in upper:
+                    current = "content_ideas"
+                    continue
+                elif "SUGGESTED TITLE" in upper:
+                    current = "suggested_titles"
+                    continue
+                if current and line.strip():
+                    sections[current] += line + "\n"
+
+            # If parsing failed, dump everything into viral_factors
+            if not any(sections.values()):
+                sections["viral_factors"] = raw
+
+            analysis = sections
+
+        except Exception as e:
+            logger.error(f"AI analysis failed for trending shorts: {e}")
+            analysis = {
+                "viral_factors": f"AI analysis unavailable: {e}",
+                "content_ideas": "",
+                "suggested_titles": "",
+            }
+
+        return {"videos": top_videos, "analysis": analysis}
+
+    except Exception as e:
+        logger.error(f"Trending shorts research failed: {e}")
+        return {"error": f"Failed to fetch trending shorts: {str(e)}"}
 
 
 # ── Runner ──────────────────────────────────────────────────────────────────

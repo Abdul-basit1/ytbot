@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}Trending Shorts Research{% endblock %}
+{% block content %}
+<h2>Trending Shorts Research</h2>
+<p class="subtitle">Discover viral short-form content on any topic — powered by YouTube Data API + AI analysis</p>
+
+<div style="display: flex; gap: 12px; margin-bottom: 24px; align-items: center;">
+    <input type="text" id="search-query" class="input-lg" placeholder="e.g. satisfying process, car restoration, pool manufacturing..."
+           style="flex: 1; font-size: 15px;" value="satisfying process oddly satisfying">
+    <button class="btn btn-primary" id="btn-search" onclick="searchShorts()">Search</button>
+</div>
+
+<!-- Loading state -->
+<div id="shorts-loading" class="loading" style="display:none;">Searching YouTube for trending shorts and analyzing with AI...</div>
+
+<!-- Error state -->
+<div id="shorts-error" style="display:none;" class="card">
+    <p style="color: var(--red); font-size: 14px;" id="shorts-error-msg"></p>
+</div>
+
+<!-- Results container -->
+<div id="shorts-results" style="display:none;">
+
+    <!-- Trending shorts grid -->
+    <h3 style="margin-bottom: 12px;">Top Trending Shorts</h3>
+    <div id="shorts-grid" class="shorts-grid"></div>
+
+    <!-- AI Analysis section -->
+    <div id="ai-section" style="display:none; margin-top: 24px;">
+        <div class="card" style="margin-bottom: 16px;">
+            <h3>What Makes These Shorts Viral</h3>
+            <div id="viral-analysis" class="recommendations"></div>
+        </div>
+
+        <div class="card" style="margin-bottom: 16px;">
+            <h3>5 Content Ideas Inspired by Trending</h3>
+            <div id="content-ideas" class="recommendations"></div>
+        </div>
+
+        <div class="card">
+            <h3>Suggested Titles &amp; Descriptions</h3>
+            <div id="suggested-titles" class="recommendations"></div>
+        </div>
+    </div>
+</div>
+
+<style>
+.shorts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.shorts-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+}
+.shorts-card:hover {
+    border-color: var(--accent);
+}
+.shorts-card img {
+    width: 100%;
+    aspect-ratio: 9/16;
+    object-fit: cover;
+    display: block;
+    max-height: 320px;
+}
+.shorts-card-body {
+    padding: 12px 14px;
+}
+.shorts-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.shorts-card-channel {
+    font-size: 12px;
+    color: var(--accent-light);
+    margin-bottom: 4px;
+}
+.shorts-card-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+.shorts-views {
+    font-weight: 600;
+    color: var(--green);
+}
+.shorts-duration {
+    font-size: 11px;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 4px;
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+}
+.shorts-thumb-wrap {
+    position: relative;
+}
+</style>
+
+<script>
+function formatViews(n) {
+    if (!n) return '0';
+    if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+    return n.toString();
+}
+
+function formatDuration(iso) {
+    if (!iso) return '';
+    // Parse ISO 8601 duration like PT45S or PT1M30S
+    const match = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!match) return iso;
+    const h = parseInt(match[1] || 0);
+    const m = parseInt(match[2] || 0);
+    const s = parseInt(match[3] || 0);
+    if (h > 0) return h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+    return m + ':' + String(s).padStart(2,'0');
+}
+
+async function searchShorts() {
+    const query = document.getElementById('search-query').value.trim();
+    if (!query) return;
+
+    const btn = document.getElementById('btn-search');
+    const loading = document.getElementById('shorts-loading');
+    const errorDiv = document.getElementById('shorts-error');
+    const results = document.getElementById('shorts-results');
+
+    btn.disabled = true;
+    loading.style.display = 'block';
+    errorDiv.style.display = 'none';
+    results.style.display = 'none';
+
+    try {
+        const resp = await fetch('/api/trending/shorts', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({query: query})
+        });
+        const data = await resp.json();
+
+        loading.style.display = 'none';
+
+        if (!resp.ok || data.error) {
+            errorDiv.style.display = 'block';
+            document.getElementById('shorts-error-msg').textContent = data.error || 'Failed to fetch trending shorts';
+            btn.disabled = false;
+            return;
+        }
+
+        results.style.display = 'block';
+
+        // Render video cards
+        const grid = document.getElementById('shorts-grid');
+        grid.innerHTML = '';
+        (data.videos || []).forEach(function(v) {
+            const card = document.createElement('div');
+            card.className = 'shorts-card';
+            card.innerHTML =
+                '<a href="https://youtube.com/shorts/' + (v.video_id || '') + '" target="_blank" style="text-decoration:none;color:inherit;">' +
+                    '<div class="shorts-thumb-wrap">' +
+                        '<img src="' + (v.thumbnail || '') + '" alt="' + (v.title || '').replace(/"/g, '&quot;') + '" loading="lazy">' +
+                        (v.duration ? '<span class="shorts-duration">' + formatDuration(v.duration) + '</span>' : '') +
+                    '</div>' +
+                '</a>' +
+                '<div class="shorts-card-body">' +
+                    '<div class="shorts-card-title">' + (v.title || 'Untitled') + '</div>' +
+                    '<div class="shorts-card-channel">' + (v.channel || 'Unknown') + '</div>' +
+                    '<div class="shorts-card-meta">' +
+                        '<span class="shorts-views">' + formatViews(v.views) + ' views</span>' +
+                    '</div>' +
+                '</div>';
+            grid.appendChild(card);
+        });
+
+        // Render AI analysis
+        if (data.analysis) {
+            var a = data.analysis;
+            var aiSection = document.getElementById('ai-section');
+            aiSection.style.display = 'block';
+
+            if (a.viral_factors) {
+                document.getElementById('viral-analysis').innerHTML = a.viral_factors.split('\n')
+                    .filter(function(l) { return l.trim(); })
+                    .map(function(l) { return '<p class="rec-item">' + l + '</p>'; })
+                    .join('');
+            }
+
+            if (a.content_ideas) {
+                document.getElementById('content-ideas').innerHTML = a.content_ideas.split('\n')
+                    .filter(function(l) { return l.trim(); })
+                    .map(function(l) { return '<p class="rec-item">' + l + '</p>'; })
+                    .join('');
+            }
+
+            if (a.suggested_titles) {
+                document.getElementById('suggested-titles').innerHTML = a.suggested_titles.split('\n')
+                    .filter(function(l) { return l.trim(); })
+                    .map(function(l) { return '<p class="rec-item">' + l + '</p>'; })
+                    .join('');
+            }
+        }
+
+    } catch(e) {
+        loading.style.display = 'none';
+        errorDiv.style.display = 'block';
+        document.getElementById('shorts-error-msg').textContent = 'Network error: ' + e.message;
+    }
+
+    btn.disabled = false;
+}
+
+// Auto-search on page load with default query
+document.addEventListener('DOMContentLoaded', searchShorts);
+</script>
+{% endblock %}

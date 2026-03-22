@@ -344,5 +344,15 @@ def init_database():
             conn.commit()
             logger.info("Seeded channel: KiddoWorld")
 
+    # Ensure OddlyPerfect channel exists
+    op = conn.execute("SELECT 1 FROM channels WHERE name='OddlyPerfect'").fetchone()
+    if not op:
+        conn.execute(
+            "INSERT INTO channels (id, name, niche, region, language, daily_long_form, daily_shorts) "
+            "VALUES (3, 'OddlyPerfect', 'viral_shorts', 'GLOBAL', 'english', 0, 5)",
+        )
+        conn.commit()
+        logger.info("Seeded channel: OddlyPerfect")
+
     conn.close()
     logger.info("Database initialised ✓")

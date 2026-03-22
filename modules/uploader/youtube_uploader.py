@@ -24,6 +24,12 @@ SCOPES = [
 
 TOKEN_PATH = BASE_DIR / "token.json"
 
+# Channel-specific token files
+CHANNEL_TOKEN_MAP = {
+    "kiddoworld": "token_kiddoworld.json",
+    "oddlyperfect": "token_oddlyperfect.json",
+}
+
 # YouTube category IDs
 CATEGORIES = {
     "news": "25",
@@ -35,26 +41,32 @@ CATEGORIES = {
 }
 
 
-def _get_authenticated_service():
+def _get_authenticated_service(token_file: str | None = None):
     """
     Build and return an authenticated YouTube API service.
-    Uses stored token.json, or runs OAuth flow if no token exists.
+    Uses stored token file, or runs OAuth flow if no token exists.
+
+    Args:
+        token_file: Optional token filename (e.g. "token_oddlyperfect.json").
+                    Defaults to "token.json" for backward compatibility.
     """
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
     from google_auth_oauthlib.flow import InstalledAppFlow
     from googleapiclient.discovery import build
 
+    token_path = BASE_DIR / (token_file or "token.json")
+
     creds = None
 
     # Load existing token
-    if TOKEN_PATH.exists():
-        creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
+    if token_path.exists():
+        creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
 
     # Refresh or run new auth flow
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            logger.info("Refreshing YouTube OAuth token...")
+            logger.info(f"Refreshing YouTube OAuth token ({token_path.name})...")
             try:
                 creds.refresh(Request())
             except Exception as e:
@@ -62,23 +74,23 @@ def _get_authenticated_service():
                 creds = None
 
         if not creds:
-            if not TOKEN_PATH.exists():
+            if not token_path.exists():
                 logger.error(
-                    "No YouTube token found! Run 'python3 authenticate_youtube.py' "
-                    "on your Mac first, then deploy token.json to VPS."
+                    f"No YouTube token found ({token_path.name})! Run 'python3 authenticate_youtube.py' "
+                    "on your Mac first, then deploy token to VPS."
                 )
                 raise FileNotFoundError(
-                    "token.json not found — run authenticate_youtube.py locally first"
+                    f"{token_path.name} not found — run authenticate_youtube.py locally first"
                 )
             # Token file exists but is completely invalid
             raise RuntimeError(
-                "YouTube token is invalid and cannot be refreshed. "
+                f"YouTube token ({token_path.name}) is invalid and cannot be refreshed. "
                 "Re-run 'python3 authenticate_youtube.py' on your Mac."
             )
 
         # Save token for future use
-        TOKEN_PATH.write_text(creds.to_json())
-        logger.info("YouTube OAuth token saved")
+        token_path.write_text(creds.to_json())
+        logger.info(f"YouTube OAuth token saved ({token_path.name})")
 
     return build("youtube", "v3", credentials=creds)
 
@@ -92,6 +104,7 @@ def upload(
     privacy: str = "public",
     made_for_kids: bool = False,
     publish_at: str | None = None,
+    token_file: str | None = None,
 ) -> Optional[str]:
     """
     Upload a video to YouTube with full metadata.
@@ -114,7 +127,7 @@ def upload(
         logger.error(f"Video file not found: {video_path}")
         return None
 
-    youtube = _get_authenticated_service()
+    youtube = _get_authenticated_service(token_file=token_file)
 
     title = getattr(seo_result, "title_urdu", None) or seo_result.title
     if is_short and "#Shorts" not in title:

@@ -9,6 +9,27 @@
     <!-- Status Messages -->
     <div id="status-area"></div>
 
+    <!-- Channel Selector -->
+    <div class="card" id="section-channel">
+        <h3>Channel</h3>
+        <div style="display: flex; gap: 12px; margin-top: 6px;">
+            <label style="display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 10px; border: 2px solid var(--accent); cursor: pointer; flex: 1; transition: all 0.2s;" id="channel-kiddoworld-label">
+                <input type="radio" name="upload-channel" value="kiddoworld" id="channel-kiddoworld" checked style="accent-color: var(--accent);">
+                <div>
+                    <div style="font-weight: 600; font-size: 15px;">KiddoWorld</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Kids Content (made for kids, auto-Short)</div>
+                </div>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 10px; border: 2px solid var(--border); cursor: pointer; flex: 1; transition: all 0.2s;" id="channel-oddlyperfect-label">
+                <input type="radio" name="upload-channel" value="oddlyperfect" id="channel-oddlyperfect" style="accent-color: var(--accent);">
+                <div>
+                    <div style="font-weight: 600; font-size: 15px;">OddlyPerfect</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Viral Shorts channel</div>
+                </div>
+            </label>
+        </div>
+    </div>
+
     <!-- Section 1: Upload Video -->
     <div class="card" id="section-upload">
         <h3>1. Upload Video</h3>
@@ -197,13 +218,42 @@
     let thumbnailFile = null;
     let seoGenerated = false;
 
+    // Channel selector toggle
+    function getSelectedChannel() {
+        return document.querySelector('input[name="upload-channel"]:checked').value;
+    }
+
+    document.querySelectorAll('input[name="upload-channel"]').forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            const isOddly = this.value === 'oddlyperfect';
+            document.getElementById('channel-kiddoworld-label').style.borderColor = !isOddly ? 'var(--accent)' : 'var(--border)';
+            document.getElementById('channel-oddlyperfect-label').style.borderColor = isOddly ? 'var(--accent)' : 'var(--border)';
+
+            // Hide "Also Create Short" for OddlyPerfect (it IS a shorts channel)
+            const shortLabel = document.getElementById('create-short-label');
+            const shortCheckbox = document.getElementById('create-short');
+            if (isOddly) {
+                shortLabel.style.display = 'none';
+                shortCheckbox.checked = false;
+            } else {
+                // Restore based on format selection
+                const fmt = getVideoFormat();
+                if (fmt === 'long') {
+                    shortLabel.style.display = 'flex';
+                    shortCheckbox.checked = true;
+                }
+            }
+        });
+    });
+
     // Format toggle
     document.querySelectorAll('input[name="video-format"]').forEach(function(radio) {
         radio.addEventListener('change', function() {
             const isShort = this.value === 'short';
+            const isOddly = getSelectedChannel() === 'oddlyperfect';
             const shortLabel = document.getElementById('create-short-label');
             const shortCheckbox = document.getElementById('create-short');
-            if (isShort) {
+            if (isShort || isOddly) {
                 shortLabel.style.display = 'none';
                 shortCheckbox.checked = false;
             } else {
@@ -421,7 +471,8 @@
                     description: document.getElementById('yt-description').value,
                     tags: document.getElementById('yt-tags').value.split(',').map(t => t.trim()).filter(Boolean),
                     create_short: document.getElementById('create-short').checked,
-                    format: getVideoFormat()
+                    format: getVideoFormat(),
+                    channel: getSelectedChannel()
                 })
             });
             const data = await resp.json();

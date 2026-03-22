@@ -15,3 +15,5 @@ assets/templates/*
 .vscode/
 .idea/
 .claude/
+token_kiddoworld.json
+token_oddlyperfect.json
