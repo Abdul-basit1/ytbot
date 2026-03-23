@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+{% block title %}Thumbnails{% endblock %}
+{% block content %}
+<h2>Thumbnail Manager</h2>
+<p class="subtitle">View and update thumbnails for all your YouTube videos</p>
+
+<!-- Channel filter tabs -->
+<div class="thumb-tabs">
+    <button class="thumb-tab active" data-filter="all">All</button>
+    <button class="thumb-tab" data-filter="kiddoworld">KiddoWorld</button>
+    <button class="thumb-tab" data-filter="oddlyperfect">OddlyPerfect</button>
+</div>
+
+<!-- Loading state -->
+<div id="thumb-loading" class="loading">Loading videos from YouTube</div>
+
+<!-- Error state -->
+<div id="thumb-error" class="status-msg status-error" style="display:none"></div>
+
+<!-- Video grid -->
+<div id="thumb-grid" class="thumb-grid" style="display:none"></div>
+
+<!-- Empty state -->
+<div id="thumb-empty" class="empty-state" style="display:none">No videos found.</div>
+
+<!-- Toast -->
+<div id="toast" class="thumb-toast"></div>
+
+<style>
+.thumb-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+}
+.thumb-tab {
+    padding: 8px 20px;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.thumb-tab:hover {
+    color: var(--text);
+    border-color: var(--accent);
+}
+.thumb-tab.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+.thumb-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.thumb-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+}
+.thumb-card:hover {
+    border-color: var(--accent);
+}
+.thumb-card-img {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: var(--bg);
+    overflow: hidden;
+}
+.thumb-card-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    loading: lazy;
+}
+.thumb-card-body {
+    padding: 14px 16px;
+}
+.thumb-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.thumb-card-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+.thumb-card-channel {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.thumb-card-channel.kiddoworld {
+    background: rgba(108, 92, 231, 0.15);
+    color: var(--accent-light);
+}
+.thumb-card-channel.oddlyperfect {
+    background: rgba(0, 184, 148, 0.15);
+    color: var(--green);
+}
+
+.thumb-upload-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.thumb-upload-btn {
+    padding: 6px 14px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.thumb-upload-btn:hover {
+    background: var(--accent-light);
+}
+.thumb-upload-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.thumb-upload-btn.uploading {
+    position: relative;
+    color: transparent;
+}
+.thumb-upload-btn.uploading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    border: 2px solid white;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+/* Toast notification */
+.thumb-toast {
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s;
+    pointer-events: none;
+}
+.thumb-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+.thumb-toast.success {
+    background: rgba(0, 184, 148, 0.9);
+    color: white;
+}
+.thumb-toast.error {
+    background: rgba(225, 112, 85, 0.9);
+    color: white;
+}
+
+@media (max-width: 1024px) {
+    .thumb-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+    .thumb-grid { grid-template-columns: 1fr; }
+}
+</style>
+
+<script>
+(function() {
+    let allVideos = [];
+    let activeFilter = 'all';
+
+    const grid = document.getElementById('thumb-grid');
+    const loading = document.getElementById('thumb-loading');
+    const errorDiv = document.getElementById('thumb-error');
+    const emptyDiv = document.getElementById('thumb-empty');
+    const toast = document.getElementById('toast');
+
+    // Tab switching
+    document.querySelectorAll('.thumb-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.thumb-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            activeFilter = tab.dataset.filter;
+            renderGrid();
+        });
+    });
+
+    function showToast(msg, type) {
+        toast.textContent = msg;
+        toast.className = 'thumb-toast ' + type + ' show';
+        setTimeout(() => { toast.className = 'thumb-toast'; }, 3500);
+    }
+
+    function formatViews(n) {
+        if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+        if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+        return n.toLocaleString();
+    }
+
+    function renderGrid() {
+        const filtered = activeFilter === 'all'
+            ? allVideos
+            : allVideos.filter(v => v.channel_key === activeFilter);
+
+        if (filtered.length === 0) {
+            grid.style.display = 'none';
+            emptyDiv.style.display = 'block';
+            return;
+        }
+        emptyDiv.style.display = 'none';
+        grid.style.display = 'grid';
+
+        grid.innerHTML = filtered.map(v => `
+            <div class="thumb-card" data-id="${v.id}" data-channel="${v.channel_key}">
+                <div class="thumb-card-img">
+                    <img src="${v.thumbnail_url}" alt="${v.title}" loading="lazy" id="img-${v.id}">
+                </div>
+                <div class="thumb-card-body">
+                    <div class="thumb-card-title" title="${v.title}">${v.title}</div>
+                    <div class="thumb-card-meta">
+                        <span class="thumb-card-channel ${v.channel_key}">${v.channel}</span>
+                        <span>${formatViews(v.views)} views</span>
+                    </div>
+                    <div class="thumb-upload-row">
+                        <input type="file" accept="image/*" id="file-${v.id}" style="display:none"
+                               onchange="window._uploadThumb('${v.id}', '${v.channel_key}', this)">
+                        <button class="thumb-upload-btn" id="btn-${v.id}"
+                                onclick="document.getElementById('file-${v.id}').click()">
+                            Upload Thumbnail
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    window._uploadThumb = async function(videoId, channelKey, input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const btn = document.getElementById('btn-' + videoId);
+        btn.classList.add('uploading');
+        btn.disabled = true;
+
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('channel', channelKey);
+
+        try {
+            const resp = await fetch('/api/thumbnails/' + videoId + '/set', {
+                method: 'POST',
+                body: fd,
+            });
+
+            if (resp.status === 429) {
+                showToast('Rate limited by YouTube. Try again in a few minutes.', 'error');
+                return;
+            }
+
+            const data = await resp.json();
+            if (resp.ok && data.status === 'ok') {
+                showToast('Thumbnail updated!', 'success');
+                // Refresh the thumbnail image with cache-bust
+                const img = document.getElementById('img-' + videoId);
+                if (img) {
+                    img.src = URL.createObjectURL(file);
+                }
+            } else {
+                showToast(data.error || 'Upload failed', 'error');
+            }
+        } catch (err) {
+            showToast('Network error: ' + err.message, 'error');
+        } finally {
+            btn.classList.remove('uploading');
+            btn.disabled = false;
+            input.value = '';
+        }
+    };
+
+    // Fetch videos on load
+    async function loadVideos() {
+        try {
+            const resp = await fetch('/api/thumbnails');
+            if (resp.status === 429) {
+                loading.style.display = 'none';
+                errorDiv.textContent = 'Rate limited by YouTube API. Try again in a few minutes.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (!resp.ok) {
+                throw new Error('Failed to load videos');
+            }
+            allVideos = await resp.json();
+            loading.style.display = 'none';
+            renderGrid();
+        } catch (err) {
+            loading.style.display = 'none';
+            errorDiv.textContent = 'Error loading videos: ' + err.message;
+            errorDiv.style.display = 'block';
+        }
+    }
+
+    loadVideos();
+})();
+</script>
+{% endblock %}

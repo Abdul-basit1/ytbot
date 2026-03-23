@@ -1500,6 +1500,26 @@ async def api_publish_draft(draft_id: int, request: Request):
     return {"status": "published", "youtube_url": yt_url}
 
 
+@app.post("/api/upload/thumbnail")
+async def api_upload_thumbnail(request: Request):
+    """Upload a custom thumbnail image."""
+    form = await request.form()
+    file = form.get("file")
+    video_id = form.get("video_id")
+    if not file:
+        return JSONResponse(status_code=400, content={"error": "No file"})
+
+    import hashlib
+    content = await file.read()
+    ext = ".jpg" if "jpeg" in (file.content_type or "") else ".png"
+    fname = f"thumb_{hashlib.md5(content).hexdigest()[:10]}{ext}"
+    thumb_dir = Path(BASE_DIR) / "output" / "thumbnails"
+    thumb_dir.mkdir(parents=True, exist_ok=True)
+    thumb_path = thumb_dir / fname
+    thumb_path.write_bytes(content)
+    return {"path": str(thumb_path), "filename": fname, "size_kb": len(content) // 1024}
+
+
 @app.post("/api/upload/publish")
 async def api_publish(request: Request):
     """Upload video to YouTube with approved SEO."""
@@ -1511,6 +1531,7 @@ async def api_publish(request: Request):
     create_short = body.get("create_short", True)
     video_format = body.get("format", "long")  # "long" or "short"
     channel = body.get("channel", "kiddoworld")  # "kiddoworld" or "oddlyperfect"
+    thumbnail_path_str = body.get("thumbnail_path", "")
 
     # Channel-specific settings
     CHANNEL_TOKEN_MAP = {
@@ -1642,6 +1663,7 @@ async def api_publish(request: Request):
 
     # Upload to YouTube (with scheduled premiere for long-form)
     from modules.uploader.youtube_uploader import upload
+    thumb_path = Path(thumbnail_path_str) if thumbnail_path_str and Path(thumbnail_path_str).exists() else None
     try:
         yt_id = upload(
             video_path=final_video_path,
@@ -1650,6 +1672,7 @@ async def api_publish(request: Request):
             made_for_kids=is_kids_channel,
             publish_at=publish_at,
             token_file=token_file,
+            thumbnail_path=thumb_path,
         )
     except Exception as e:
         err_msg = str(e)
@@ -2405,6 +2428,163 @@ async def api_trending_shorts(request: Request):
     except Exception as e:
         logger.error(f"Trending shorts research failed: {e}")
         return {"error": f"Failed to fetch trending shorts: {str(e)}"}
+
+
+# ── Thumbnail Manager ────────────────────────────────────────────────────────
+
+CHANNEL_TOKENS = {
+    "kiddoworld": "token_kiddoworld.json",
+    "oddlyperfect": "token_oddlyperfect.json",
+}
+
+CHANNEL_NAMES = {
+    "kiddoworld": "KiddoWorld",
+    "oddlyperfect": "OddlyPerfect",
+}
+
+
+@app.get("/thumbnails", response_class=HTMLResponse)
+async def thumbnails_page(request: Request, _user: str = Depends(verify_credentials)):
+    channels = _get_channels()
+    return templates.TemplateResponse("thumbnails.html", {
+        "request": request,
+        "channels": channels,
+        "active_channel_id": _default_channel_id(channels),
+    })
+
+
+@app.get("/api/thumbnails")
+async def api_thumbnails_list(request: Request, _user: str = Depends(verify_credentials)):
+    """Fetch all uploaded videos from both channels via YouTube API."""
+    from modules.uploader.youtube_uploader import _get_authenticated_service
+
+    all_videos = []
+
+    for channel_key, token_file in CHANNEL_TOKENS.items():
+        channel_name = CHANNEL_NAMES[channel_key]
+        try:
+            youtube = _get_authenticated_service(token_file=token_file)
+
+            # Get channel's uploaded videos playlist
+            ch_resp = youtube.channels().list(part="contentDetails", mine=True).execute()
+            if not ch_resp.get("items"):
+                continue
+            uploads_playlist = ch_resp["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+
+            # Paginate through playlist
+            next_page = None
+            fetched = 0
+            while fetched < 200:
+                pl_resp = youtube.playlistItems().list(
+                    playlistId=uploads_playlist,
+                    part="snippet",
+                    maxResults=50,
+                    pageToken=next_page,
+                ).execute()
+
+                for item in pl_resp.get("items", []):
+                    snippet = item.get("snippet", {})
+                    vid_id = snippet.get("resourceId", {}).get("videoId", "")
+                    if not vid_id:
+                        continue
+                    thumbs = snippet.get("thumbnails", {})
+                    thumb_url = (
+                        thumbs.get("high", {}).get("url", "")
+                        or thumbs.get("medium", {}).get("url", "")
+                        or thumbs.get("default", {}).get("url", "")
+                    )
+                    all_videos.append({
+                        "id": vid_id,
+                        "title": snippet.get("title", ""),
+                        "channel": channel_name,
+                        "channel_key": channel_key,
+                        "thumbnail_url": thumb_url,
+                        "published_at": snippet.get("publishedAt", ""),
+                    })
+                    fetched += 1
+
+                next_page = pl_resp.get("nextPageToken")
+                if not next_page:
+                    break
+
+            # Batch-fetch view counts (50 at a time)
+            channel_video_ids = [v["id"] for v in all_videos if v["channel_key"] == channel_key]
+            for i in range(0, len(channel_video_ids), 50):
+                batch = channel_video_ids[i : i + 50]
+                stats_resp = youtube.videos().list(
+                    id=",".join(batch),
+                    part="statistics",
+                ).execute()
+                stats_map = {}
+                for si in stats_resp.get("items", []):
+                    stats_map[si["id"]] = int(si.get("statistics", {}).get("viewCount", 0))
+                for v in all_videos:
+                    if v["id"] in stats_map:
+                        v["views"] = stats_map[v["id"]]
+
+        except FileNotFoundError:
+            # Token missing — skip channel
+            continue
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str or "quota" in err_str.lower() or "rateLimitExceeded" in err_str:
+                return JSONResponse(
+                    status_code=429,
+                    content={"error": "Rate limited by YouTube API. Try again in a few minutes."},
+                )
+            logger.error(f"Thumbnails API error for {channel_key}: {e}")
+            continue
+
+    # Ensure all have views field
+    for v in all_videos:
+        v.setdefault("views", 0)
+
+    # Sort by published date descending
+    all_videos.sort(key=lambda x: x.get("published_at", ""), reverse=True)
+    return all_videos
+
+
+@app.post("/api/thumbnails/{video_id}/set")
+async def api_set_thumbnail(video_id: str, request: Request, _user: str = Depends(verify_credentials)):
+    """Upload a custom thumbnail for a specific YouTube video."""
+    from modules.uploader.youtube_uploader import _get_authenticated_service
+    from googleapiclient.http import MediaFileUpload
+
+    form = await request.form()
+    file = form.get("file")
+    channel = form.get("channel", "kiddoworld")
+
+    if not file:
+        return JSONResponse(status_code=400, content={"error": "No file provided"})
+
+    token_file = CHANNEL_TOKENS.get(channel, "token_kiddoworld.json")
+
+    # Save thumbnail locally
+    content = await file.read()
+    ext = ".jpg" if "jpeg" in (file.content_type or "").lower() else ".png"
+    fname = f"thumb_{video_id}{ext}"
+    thumb_dir = BASE_DIR / "output" / "thumbnails"
+    thumb_dir.mkdir(parents=True, exist_ok=True)
+    thumb_path = thumb_dir / fname
+    thumb_path.write_bytes(content)
+
+    try:
+        youtube = _get_authenticated_service(token_file=token_file)
+        media = MediaFileUpload(str(thumb_path), mimetype=file.content_type or "image/jpeg")
+        youtube.thumbnails().set(videoId=video_id, media_body=media).execute()
+    except FileNotFoundError:
+        return JSONResponse(status_code=500, content={"error": f"Token file for {channel} not found"})
+    except Exception as e:
+        err_str = str(e)
+        if "429" in err_str or "quota" in err_str.lower() or "rateLimitExceeded" in err_str:
+            return JSONResponse(
+                status_code=429,
+                content={"error": "Rate limited by YouTube API. Try again in a few minutes."},
+            )
+        logger.error(f"Thumbnail set failed for {video_id}: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+    return {"status": "ok", "video_id": video_id, "thumbnail_path": str(thumb_path)}
 
 
 # ── Runner ──────────────────────────────────────────────────────────────────

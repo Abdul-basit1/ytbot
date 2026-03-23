@@ -514,6 +514,21 @@
         const charBoxes = document.querySelectorAll('input[name="characters"]:checked');
         const characters = Array.from(charBoxes).map(c => c.value);
 
+        // Upload thumbnail first if provided
+        let thumbnailPath = '';
+        if (thumbnailFile) {
+            showStatus('Uploading thumbnail...', 'info', true);
+            const thumbForm = new FormData();
+            thumbForm.append('file', thumbnailFile);
+            thumbForm.append('video_id', uploadedVideoId);
+            try {
+                const thumbResp = await fetch('/api/upload/thumbnail', { method: 'POST', body: thumbForm });
+                const thumbData = await thumbResp.json();
+                if (thumbResp.ok) thumbnailPath = thumbData.path || '';
+            } catch (e) { /* thumbnail upload failed, continue without */ }
+            showStatus('Publishing to YouTube...', 'info', true);
+        }
+
         try {
             const resp = await fetch('/api/upload/publish', {
                 method: 'POST',
@@ -525,7 +540,8 @@
                     tags: document.getElementById('yt-tags').value.split(',').map(t => t.trim()).filter(Boolean),
                     create_short: document.getElementById('create-short').checked,
                     format: getVideoFormat(),
-                    channel: getSelectedChannel()
+                    channel: getSelectedChannel(),
+                    thumbnail_path: thumbnailPath
                 })
             });
             const data = await resp.json();
