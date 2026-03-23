@@ -132,18 +132,29 @@
 
         <!-- OddlyPerfect-only fields -->
         <div id="oddlyperfect-fields" style="display: none;">
-            <div class="scene-item" style="margin-bottom: 16px;">
-                <label for="shorts-category">Category</label>
-                <select id="shorts-category" class="select-sm" style="width: 100%;">
-                    <option value="satisfying">Oddly Satisfying</option>
-                    <option value="manufacturing">Manufacturing / How It's Made</option>
-                    <option value="restoration">Restoration / Before & After</option>
-                    <option value="nature">Nature / Animals</option>
-                    <option value="food">Food / Cooking</option>
-                    <option value="art">Art / Creative</option>
-                    <option value="tech">Tech / Gadgets</option>
-                    <option value="other">Other</option>
-                </select>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="scene-item">
+                    <label for="shorts-category">Category</label>
+                    <select id="shorts-category" class="select-sm" style="width: 100%;">
+                        <option value="satisfying">Oddly Satisfying</option>
+                        <option value="manufacturing">Manufacturing / How It's Made</option>
+                        <option value="restoration">Restoration / Before & After</option>
+                        <option value="current_affairs">Current Affairs / News</option>
+                        <option value="food">Food History / Origins</option>
+                        <option value="history">History / Facts</option>
+                        <option value="nature">Nature / Animals</option>
+                        <option value="art">Art / Creative</option>
+                        <option value="tech">Tech / Gadgets</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="scene-item">
+                    <label for="shorts-language">Language</label>
+                    <select id="shorts-language" class="select-sm" style="width: 100%;">
+                        <option value="english">English</option>
+                        <option value="hindi">Hindi</option>
+                    </select>
+                </div>
             </div>
         </div>
     </div>
@@ -433,7 +444,10 @@
                     description: description,
                     playlist: playlist,
                     age_group: age,
-                    characters: characters.join(', ')
+                    characters: characters.join(', '),
+                    channel: getSelectedChannel(),
+                    language: document.getElementById('shorts-language') ? document.getElementById('shorts-language').value : 'english',
+                    category: document.getElementById('shorts-category') ? document.getElementById('shorts-category').value : 'trending'
                 })
             });
             const data = await resp.json();

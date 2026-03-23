@@ -227,14 +227,10 @@ Only respond in JSON."""
 
         data = json.loads(response.choices[0].message.content)
 
-        # Merge default tags
-        raw_tags = data.get("tags", [])
-        for dt in default_tags:
-            if dt not in raw_tags:
-                raw_tags.append(dt)
+        # Use only GPT tags — no default tag merging (keeps count at 8-12)
+        raw_tags = data.get("tags", [])[:12]
 
         # Sanitize tags for YouTube API:
-        # YouTube is very strict — only allow simple alphanumeric + spaces
         import re as _re
         tags = []
         total_chars = 0
