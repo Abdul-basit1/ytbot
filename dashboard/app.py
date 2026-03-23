@@ -1221,114 +1221,33 @@ async def api_upload_video(
 
 @app.post("/api/upload/generate-seo")
 async def api_generate_seo(request: Request):
-    """Generate SEO using analytics learning — titles, description, tags."""
+    """Generate SEO using smart channel-aware generator with analytics learning."""
     body = await request.json()
-    video_id = body.get("video_id")
     title = body.get("title", "")
     description = body.get("description", "")
-    playlist = body.get("playlist", "songs")
-    characters = body.get("characters", "")
-    age_group = body.get("age_group", "all")
-
     channel = body.get("channel", "kiddoworld")
     language = body.get("language", "english")
     category = body.get("category", "trending")
+    video_format = body.get("format", "long")
 
-    # ── Route to correct SEO generator based on channel ──
     if channel == "oddlyperfect":
         from modules.kids_seo_generator import generate_trending_seo
         result = generate_trending_seo(
-            title=title,
-            description=description,
-            language=language,
-            category=category,
+            title=title, description=description,
+            language=language, category=category,
         )
-        return {
-            "title": result.title,
-            "description": result.description,
-            "tags": result.tags,
-        }
+    else:
+        from modules.kids_seo_generator import generate_kids_seo
+        result = generate_kids_seo(
+            title=title, description=description,
+            video_format=video_format,
+        )
 
-    # ── KiddoWorld SEO (with analytics learning) ──
-    from openai import OpenAI
-    from config import OPENAI_API_KEY
-    ai_client = OpenAI(api_key=OPENAI_API_KEY)
-
-    # Analytics learning: get insights from past performance
-    db = get_db()
-    top_videos = db.execute("""
-        SELECT u.title, u.views, u.likes
-        FROM uploads u
-        WHERE u.channel_id = 2 AND u.views > 0
-        ORDER BY u.views DESC LIMIT 10
-    """).fetchall()
-
-    best_titles = []
-    for v in top_videos:
-        if v["title"]:
-            best_titles.append(f"'{v['title']}' ({v['views']} views)")
-
-    strategy = db.execute(
-        "SELECT * FROM strategy WHERE channel_id=2 ORDER BY last_updated DESC LIMIT 1"
-    ).fetchone()
-    db.close()
-
-    analytics_context = ""
-    if best_titles:
-        analytics_context += "TOP PERFORMING TITLES (learn from these):\n"
-        analytics_context += "\n".join(best_titles[:5]) + "\n\n"
-    if strategy:
-        strategy = dict(strategy)
-        if strategy.get("recommendation_notes"):
-            analytics_context += f"INSIGHTS: {strategy['recommendation_notes']}\n"
-        if strategy.get("top_performing_keywords"):
-            analytics_context += f"Best keywords: {strategy['top_performing_keywords']}\n"
-
-    system_prompt = f"""You are a YouTube SEO expert who has studied channels with 100K+ subscribers.
-
-CHANNEL: KiddoWorld (kids aged 2-8)
-CHARACTERS: Sid (curious boy), Kido (playful baby), Mom, Dad
-PLAYLIST: {playlist}
-
-{analytics_context}
-
-TITLE RULES:
-- Emotional hook + topic + emojis (🎵 🌟 ✨) + channel name
-- Include "Nursery Rhymes" or "Kids Songs" for search volume
-- End with "KiddoWorld"
-- For Shorts: add #shorts at end
-- Max 90 characters
-
-DESCRIPTION RULES:
-- First line = emotional hook
-- Keep SHORT (200-400 chars body)
-- 15-20 hashtags at bottom
-
-TAGS RULES:
-- Only 8-12 tags (NOT 25-30)
-- Always: "KiddoWorld", "nursery rhymes", "kids songs"
-- 3-5 topic-specific tags
-- ASCII only
-
-Return JSON:
-{{
-    "title": "hook + emojis + channel #shorts",
-    "description": "short + hashtag heavy",
-    "tags": ["8-12 tags"]
-}}"""
-
-    resp = ai_client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Video topic: {title}\nDescription: {description}\nPlaylist: {playlist}\nCharacters: {characters}\nAge: {age_group}"},
-        ],
-        response_format={"type": "json_object"},
-        temperature=0.7,
-    )
-
-    seo = json.loads(resp.choices[0].message.content)
-    return seo
+    return {
+        "title": result.title,
+        "description": result.description,
+        "tags": result.tags,
+    }
 
 
 @app.post("/api/upload/save-draft")
