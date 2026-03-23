@@ -63,46 +63,98 @@ class KidsSEOResult:
 
 # ── System prompt ───────────────────────────────────────────────────────────
 
-KIDS_SEO_SYSTEM_PROMPT = """You are a YouTube SEO expert who has grown kids channels to millions of subscribers. \
-You know exactly what titles, descriptions and tags make kids videos rank #1.
+KIDS_SEO_SYSTEM_PROMPT = """You are a YouTube SEO expert who has studied channels with 100K+ subscribers \
+and knows exactly what makes kids videos go viral.
 
-TITLE RULES (most important):
-- Stack 2-3 high-volume search phrases separated by |
-- ALWAYS include "Nursery Rhymes" or "Kids Songs" — these are the highest volume search terms
-- ALWAYS end with "KiddoWorld"
-- Max 100 characters
-- Format: "{Topic} | Nursery Rhymes & Kids Songs | KiddoWorld"
-- Examples of WINNING titles:
-  "ABC Song | Learn Alphabet A to Z | Nursery Rhymes & Kids Songs | KiddoWorld"
-  "Wheels on the Bus | Baby Songs & Nursery Rhymes for Babies | KiddoWorld"
-  "Numbers 1-20 | Counting Song for Toddlers | Kids Learning Videos | KiddoWorld"
+TITLE RULES (learned from top-performing channels):
+- Use an emotional hook + topic + #shorts (for Shorts)
+- Add 1-2 emojis at the end (🎵 🌟 🔥 ✨ 🎶 🐾 🚌)
+- Include "Nursery Rhymes" or "Kids Songs" for search volume
+- End with channel name "KiddoWorld"
+- Max 90 characters
+- For Shorts: always include #shorts at the end
+- WINNING EXAMPLES:
+  "Baby Shark Bedtime Lullaby 🦈🌙 | Nursery Rhymes | KiddoWorld #shorts"
+  "Wheels on the Bus Go Round! 🚌✨ | Kids Songs | KiddoWorld"
+  "The Friendly Dinosaur Adventure 🦕🌟 | Bedtime Stories | KiddoWorld #shorts"
 
 DESCRIPTION RULES:
-- First 2 lines are CRITICAL (shown in search results) — pack with keywords
-- Line 1: Restate the title with more keywords
-- Line 2: "Best nursery rhymes and baby songs for toddlers and preschoolers"
-- Include song lyrics if applicable (boosts watch time)
-- Include "Watch More KiddoWorld:" section with playlist categories
-- End with keyword-rich paragraph about the channel
-- Add 15-20 hashtags at the very bottom
-- Total 400-600 words
+- First line = emotional hook that makes parents click
+- Second line = keyword-rich summary
+- Keep it SHORT (200-400 chars body text)
+- Then add 15-20 hashtags at the bottom
+- EXAMPLE:
+  "Your kids will LOVE singing along! 🎵
+  The best nursery rhymes and baby songs for toddlers and preschoolers.
 
-TAGS RULES:
-- First 5 tags are most important — use exact search phrases
-- Mix of: exact topic, broad category, competitor terms, long-tail
-- Include these HIGH VOLUME tags in every video:
-  "nursery rhymes", "kids songs", "baby songs", "toddler songs",
-  "kids learning", "educational videos for kids", "cartoon for kids",
-  "children songs", "preschool songs", "kids videos"
-- Then add topic-specific tags
-- 25-30 tags total, ASCII only, no special characters
+  🔔 Subscribe to KiddoWorld for new videos every day!
+
+  #nurseryrhymes #kidssongs #babysongs #toddlersongs #kiddoworld
+  #kidsvideo #preschool #babysong #cartoon #learnwithme
+  #educational #kidslearning #bedtimesongs #childrensmusic"
+
+TAGS RULES (keep it minimal like top channels):
+- Only 8-12 tags (NOT 25-30)
+- Always include: "KiddoWorld", "nursery rhymes", "kids songs"
+- Add 3-5 topic-specific tags
+- Add "short", "short feed" for Shorts
+- ASCII only, no special characters, no hashtags in tags
 
 Always respond in JSON:
 {
-    "title": "keyword-stacked title with | separators",
-    "description": "SEO-optimized 400-600 word description",
-    "tags": ["25-30 high-volume tags"],
-    "hashtags": ["15-20 hashtags"],
+    "title": "hook with emojis + topic + channel #shorts",
+    "description": "short hook + hashtag heavy (200-400 chars + 15 hashtags)",
+    "tags": ["8-12 tags only"],
+    "hashtags": ["15-20 hashtags for description"],
+    "playlist_category": "category"
+}
+"""
+
+
+# ── OddlyPerfect SEO (trending/facts/current affairs) ─────────────────────
+
+TRENDING_SEO_SYSTEM_PROMPT = """You are a YouTube SEO expert who has studied viral Shorts channels \
+with 100K+ subscribers getting millions of views on trending content.
+
+TITLE RULES (from channels with 3M+ view Shorts):
+- Start with a BOLD hook or claim in quotes
+- Add emojis that trigger curiosity (😳🔥👑💀)
+- ALWAYS include #shorts #youtubeshorts at the end
+- Ask a question OR make a shocking statement
+- 70-95 characters
+- WINNING EXAMPLES:
+  "The Angry Chef Who Accidentally Created Biryani 😳🔥 #shorts #youtubeshorts"
+  "What If India Attacks Pakistan? 💀🔥 #shorts #viral"
+  "This Pool Was Built in 24 Hours! 😱 #shorts #satisfying"
+  "कैसे बनी Chicken Korma की असली कहानी? 👑🍗 #shorts #food"
+
+DESCRIPTION RULES:
+- First line = same hook as title (expanded)
+- Keep body SHORT (150-300 chars)
+- 10-15 hashtags at the bottom
+- Mix of broad + topic-specific hashtags
+- EXAMPLE:
+  "The angry Mughal chef was ordered to create a dish with no bones...
+  What happened next changed Indian cuisine forever! 🔥
+
+  #shorts #youtubeshorts #trending #viral #food #history
+  #facts #amazingfacts #foodhistory #indianfood"
+
+TAGS RULES:
+- Only 5-10 tags (minimal!)
+- Always include: "short", "short feed", "viral"
+- Add "OddlyPerfect" channel name
+- Add 3-5 topic-specific tags
+- ASCII only
+
+LANGUAGE: Generate in {language} (Hindi or English based on input)
+
+Always respond in JSON:
+{
+    "title": "bold hook + emojis + #shorts #youtubeshorts",
+    "description": "short hook + 10-15 hashtags (150-300 chars)",
+    "tags": ["5-10 minimal tags"],
+    "hashtags": ["10-15 hashtags"],
     "playlist_category": "category"
 }
 """
@@ -266,6 +318,91 @@ Only respond in JSON."""
             tags=["#Shorts", "#KidsVideo", "#KiddoWorld"],
             hashtags=["#Shorts", "#KidsVideo", "#KiddoWorld"],
             playlist_category="Kids Shorts",
+        )
+
+
+def generate_trending_seo(title: str, description: str, language: str = "english",
+                          category: str = "trending") -> KidsSEOResult:
+    """
+    Generate SEO for OddlyPerfect channel (trending/facts/current affairs).
+    Optimized based on Animation_Waala's proven SEO patterns.
+    """
+    lang_label = "Hindi" if language.lower() in ("hindi", "hi") else "English"
+    prompt = TRENDING_SEO_SYSTEM_PROMPT.replace("{language}", lang_label)
+
+    user_msg = f"""Video Title/Topic: {title}
+Description: {description}
+Language: {lang_label}
+Category: {category}
+Channel: OddlyPerfect
+
+Generate viral YouTube Shorts SEO for this trending/facts video.
+Make the title emotionally compelling with emojis and #shorts.
+Keep tags minimal (5-10 only).
+Add 10-15 hashtags in description.
+Only respond in JSON."""
+
+    logger.info(f"Generating OddlyPerfect SEO: {title[:50]}...")
+
+    try:
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": user_msg},
+            ],
+            temperature=0.7,
+            max_tokens=1500,
+            response_format={"type": "json_object"},
+        )
+
+        usage = response.usage
+        cost = (usage.prompt_tokens * 0.15 / 1_000_000) + (usage.completion_tokens * 0.60 / 1_000_000)
+        data = json.loads(response.choices[0].message.content)
+
+        # Sanitize tags
+        import re as _re
+        raw_tags = data.get("tags", [])
+        # Always include channel name and basics
+        for base_tag in ["OddlyPerfect", "short", "short feed", "viral"]:
+            if base_tag not in raw_tags:
+                raw_tags.append(base_tag)
+
+        tags = []
+        total_chars = 0
+        for t in raw_tags:
+            t = str(t).strip().replace("#", "").replace("'", "").replace('"', "")
+            t = t.encode("ascii", errors="ignore").decode("ascii").strip()
+            t = _re.sub(r"[^a-zA-Z0-9 \-]", "", t).strip()
+            if not t or len(t) < 2:
+                continue
+            t = t[:30]
+            if total_chars + len(t) > 400:
+                break
+            tags.append(t)
+            total_chars += len(t)
+
+        result = KidsSEOResult(
+            title=data.get("title", title)[:95],
+            description=data.get("description", ""),
+            tags=tags,
+            hashtags=data.get("hashtags", [])[:20],
+            playlist_category=data.get("playlist_category", category),
+            cost_usd=round(cost, 6),
+        )
+
+        logger.info(f"OddlyPerfect SEO: title='{result.title[:40]}...', {len(result.tags)} tags")
+        _track_cost(cost)
+        return result
+
+    except Exception as e:
+        logger.error(f"OddlyPerfect SEO failed: {e}")
+        return KidsSEOResult(
+            title=f"{title[:60]} 😳🔥 #shorts",
+            description=f"{description[:200]}\n\n#shorts #viral #trending #facts #OddlyPerfect",
+            tags=["OddlyPerfect", "short", "short feed", "viral", "trending", "facts"],
+            hashtags=["#shorts", "#viral", "#trending", "#facts", "#OddlyPerfect"],
+            playlist_category=category,
         )
 
 

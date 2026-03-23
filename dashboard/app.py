@@ -1230,55 +1230,61 @@ async def api_generate_seo(request: Request):
     characters = body.get("characters", "")
     age_group = body.get("age_group", "all")
 
+    channel = body.get("channel", "kiddoworld")
+    language = body.get("language", "english")
+    category = body.get("category", "trending")
+
+    # ── Route to correct SEO generator based on channel ──
+    if channel == "oddlyperfect":
+        from modules.kids_seo_generator import generate_trending_seo
+        result = generate_trending_seo(
+            title=title,
+            description=description,
+            language=language,
+            category=category,
+        )
+        return {
+            "title": result.title,
+            "description": result.description,
+            "tags": result.tags,
+        }
+
+    # ── KiddoWorld SEO (with analytics learning) ──
     from openai import OpenAI
     from config import OPENAI_API_KEY
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    ai_client = OpenAI(api_key=OPENAI_API_KEY)
 
-    # ── Analytics Learning: Get insights from past performance ──
+    # Analytics learning: get insights from past performance
     db = get_db()
     top_videos = db.execute("""
-        SELECT u.title, u.views, u.likes, va.ctr, va.avg_view_percentage
+        SELECT u.title, u.views, u.likes
         FROM uploads u
-        LEFT JOIN video_analytics va ON u.id = va.upload_id
         WHERE u.channel_id = 2 AND u.views > 0
         ORDER BY u.views DESC LIMIT 10
     """).fetchall()
 
-    # Get best performing title patterns
     best_titles = []
     for v in top_videos:
         if v["title"]:
             best_titles.append(f"'{v['title']}' ({v['views']} views)")
 
-    # Get all used tags and their associated view counts
-    recent_seo = db.execute("""
-        SELECT v.script, u.views FROM videos v
-        JOIN uploads u ON v.id = u.video_id
-        WHERE v.channel_id = 2 AND u.views > 0
-        ORDER BY u.views DESC LIMIT 10
-    """).fetchall()
-
-    # Get strategy recommendations
     strategy = db.execute(
         "SELECT * FROM strategy WHERE channel_id=2 ORDER BY last_updated DESC LIMIT 1"
     ).fetchone()
-
     db.close()
 
     analytics_context = ""
     if best_titles:
-        analytics_context += "TOP PERFORMING TITLES (learn from these patterns):\n"
+        analytics_context += "TOP PERFORMING TITLES (learn from these):\n"
         analytics_context += "\n".join(best_titles[:5]) + "\n\n"
     if strategy:
         strategy = dict(strategy)
-        analytics_context += f"CHANNEL STRATEGY INSIGHTS:\n"
         if strategy.get("recommendation_notes"):
-            analytics_context += strategy["recommendation_notes"] + "\n"
+            analytics_context += f"INSIGHTS: {strategy['recommendation_notes']}\n"
         if strategy.get("top_performing_keywords"):
             analytics_context += f"Best keywords: {strategy['top_performing_keywords']}\n"
 
-    system_prompt = f"""You are a YouTube SEO expert who has grown kids channels to millions of subscribers.
-You know exactly what titles, descriptions and tags make kids videos rank #1.
+    system_prompt = f"""You are a YouTube SEO expert who has studied channels with 100K+ subscribers.
 
 CHANNEL: KiddoWorld (kids aged 2-8)
 CHARACTERS: Sid (curious boy), Kido (playful baby), Mom, Dad
@@ -1287,35 +1293,31 @@ PLAYLIST: {playlist}
 {analytics_context}
 
 TITLE RULES:
-- Stack 2-3 high-volume search phrases separated by |
-- ALWAYS include "Nursery Rhymes" or "Kids Songs" for songs, "Stories for Kids" for stories
-- ALWAYS end with "KiddoWorld"
-- Max 100 characters
-- Learn from top performing titles above — use similar patterns
+- Emotional hook + topic + emojis (🎵 🌟 ✨) + channel name
+- Include "Nursery Rhymes" or "Kids Songs" for search volume
+- End with "KiddoWorld"
+- For Shorts: add #shorts at end
+- Max 90 characters
 
 DESCRIPTION RULES:
-- First 2 lines packed with search keywords (shown in results)
-- Include full video summary
-- Include "Watch More KiddoWorld:" section
-- End with keyword-rich channel description
+- First line = emotional hook
+- Keep SHORT (200-400 chars body)
 - 15-20 hashtags at bottom
-- 400-600 words total
 
 TAGS RULES:
-- 25-30 tags, ASCII only
-- First 5: exact search phrases users type
-- Include: nursery rhymes, kids songs, baby songs, toddler songs, KiddoWorld
-- Add topic-specific tags
-- Learn from what worked before
+- Only 8-12 tags (NOT 25-30)
+- Always: "KiddoWorld", "nursery rhymes", "kids songs"
+- 3-5 topic-specific tags
+- ASCII only
 
 Return JSON:
 {{
-    "title": "SEO-optimized title",
-    "description": "full description with hashtags",
-    "tags": ["tag1", "tag2", ...]
+    "title": "hook + emojis + channel #shorts",
+    "description": "short + hashtag heavy",
+    "tags": ["8-12 tags"]
 }}"""
 
-    resp = client.chat.completions.create(
+    resp = ai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": system_prompt},
