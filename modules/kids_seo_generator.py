@@ -189,43 +189,54 @@ def generate_trending_seo(title: str, description: str, language: str = "english
     top_performers = _get_top_performers("oddlyperfect")
     lang_label = "Hindi" if language.lower() in ("hindi", "hi") else "English"
 
-    system_prompt = f"""You are OddlyPerfect's SEO specialist. You write titles that make people
-STOP scrolling and watch. Monetization compliant but maximum engagement.
+    system_prompt = f"""You write titles for OddlyPerfect YouTube Shorts. Your titles get thousands of views.
 
 {top_performers}
 
-RULES YOU MUST FOLLOW:
+TITLE FORMAT (you MUST use this EXACT structure):
+"The [Creative Name] | [Hidden/Abandoned/Secret] [Thing] [Build/Transform] [location] [2 emojis] #shorts #viral"
 
-TITLE (most important):
-- Start with a hook that creates curiosity about what happens in the video
-- Add 1-2 emojis that match the content (🏡 for home, 🚂 for train, 🥥 for coconut, 😱 for shocking)
-- End with #shorts
-- Max 70 characters
-- MUST be truthful — describe what actually happens
-- COPY the patterns from top performers above
-- Example: "He Built a Luxury Home Inside a Giant Coconut! 🥥😱 #shorts"
+EXAMPLES OF TITLES THAT GOT 1000+ VIEWS ON THIS CHANNEL:
+- "The Hidden Sanctuary | DIY Tree House Build 😱🔥 #shorts #viral"
+- "The Coconut House | Luxury Tiny Home Build Inside a Coconut 🥥🏡 #shorts"
+- "From Rust to Luxury: Watch This Train Bogie Transformation! 🚂✨ #shorts"
 
-DESCRIPTION (keep it VERY short):
-- Line 1: One exciting sentence about what the video shows
+BANNED PHRASES (these get ZERO views):
+- "You Won't Believe" — NEVER use this
+- "Watch This" — too generic
+- "Amazing" — overused
+- "Incredible" — overused
+- Any generic clickbait
+
+TITLE RULES:
+- ALWAYS start with "The [Name]" or "[Subject] [Action]"
+- ALWAYS use "|" separator
+- ALWAYS include "Build" or "Transformation"
+- ALWAYS end with 2 emojis + #shorts #viral
+- Max 80 characters
+- Pick emojis that MATCH the content exactly
+
+DESCRIPTION:
+- Line 1: One specific sentence about what gets built/transformed (include an emoji)
 - Line 2: empty
 - Line 3: 🤖 Created with AI animation tools.
 - Line 4: empty
-- Lines 5+: 10-12 hashtags
-- TOTAL: Under 250 characters. Short = better.
+- Lines 5+: 12 hashtags starting with #shorts #viral #satisfying
+- TOTAL: Under 300 characters
 
-TAGS (minimal):
-- Exactly 6-8 tags
-- Always: "OddlyPerfect", "short", "short feed"
-- Add 3-5 topic-specific tags
-- ASCII only
+TAGS:
+- Exactly 7-9 tags
+- ALWAYS include: "OddlyPerfect", "short", "short feed", "satisfying", "viral"
+- Add 2-4 topic-specific tags
+- ASCII only, lowercase
 
-LANGUAGE: Write in {lang_label}
+LANGUAGE: {lang_label}
 
 Return JSON:
 {{
-    "title": "curiosity hook + emojis + #shorts",
-    "description": "1 sentence + AI disclosure + hashtags",
-    "tags": ["6-8 tags"]
+    "title": "The [Name] | [Action] Build/Transform [emojis] #shorts #viral",
+    "description": "1 specific sentence + AI disclosure + 12 hashtags",
+    "tags": ["7-9 tags always including satisfying and viral"]
 }}"""
 
     user_msg = f"Video topic: {title}\nWhat happens: {description}\nCategory: {category}\nLanguage: {lang_label}"
