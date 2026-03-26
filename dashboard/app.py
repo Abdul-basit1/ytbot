@@ -1252,42 +1252,42 @@ async def api_generate_seo(request: Request):
 
 @app.post("/api/upload/save-draft")
 async def api_save_draft(request: Request):
-    """Save video as draft for later publishing."""
+    """Save draft — with or without video."""
     body = await request.json()
     video_id = body.get("video_id")
-    if not video_id:
-        return {"error": "No video ID"}
 
     db = get_db()
-    # Update video with draft info
-    db.execute(
-        "UPDATE videos SET status='draft', title=?, format=? WHERE id=?",
-        (body.get("title", "Untitled"), body.get("format", "long"), video_id),
-    )
 
-    # Save SEO data as JSON in a drafts table
     db.execute("""CREATE TABLE IF NOT EXISTS drafts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        video_id INTEGER NOT NULL,
+        video_id INTEGER,
+        channel TEXT,
         title TEXT, description TEXT, playlist TEXT, format TEXT,
         yt_title TEXT, yt_description TEXT, yt_tags TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (video_id) REFERENCES videos(id)
+        video_path TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
 
-    # Remove old draft for same video
-    db.execute("DELETE FROM drafts WHERE video_id=?", (video_id,))
+    # If has video_id, update video status
+    if video_id:
+        db.execute(
+            "UPDATE videos SET status='draft', title=?, format=? WHERE id=?",
+            (body.get("title", "Untitled"), body.get("format", "long"), video_id),
+        )
+        db.execute("DELETE FROM drafts WHERE video_id=?", (video_id,))
 
     db.execute(
-        "INSERT INTO drafts (video_id, title, description, playlist, format, yt_title, yt_description, yt_tags) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (video_id, body.get("title", ""), body.get("description", ""),
-         body.get("playlist", ""), body.get("format", "long"),
-         body.get("yt_title", ""), body.get("yt_description", ""), body.get("yt_tags", "")),
+        "INSERT INTO drafts (video_id, channel, title, description, playlist, format, yt_title, yt_description, yt_tags, video_path) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (video_id, body.get("channel", ""), body.get("title", ""), body.get("description", ""),
+         body.get("playlist", ""), body.get("format", "short"),
+         body.get("yt_title", ""), body.get("yt_description", ""), body.get("yt_tags", ""),
+         body.get("video_path", "")),
     )
     db.commit()
+    draft_id = db.execute("SELECT MAX(id) as id FROM drafts").fetchone()["id"]
     db.close()
-    return {"status": "saved", "video_id": video_id}
+    return {"status": "saved", "draft_id": draft_id}
 
 
 @app.get("/drafts")
@@ -1456,6 +1456,7 @@ async def api_publish(request: Request):
     CHANNEL_TOKEN_MAP = {
         "kiddoworld": "token_kiddoworld.json",
         "oddlyperfect": "token_oddlyperfect.json",
+        "basitunfiltered": "token_basitunfiltered.json",
     }
     token_file = CHANNEL_TOKEN_MAP.get(channel, "token_kiddoworld.json")
     is_kids_channel = channel == "kiddoworld"
@@ -1687,6 +1688,7 @@ async def api_retry_upload(video_id: int, request: Request):
     CHANNEL_TOKEN_MAP = {
         "kiddoworld": "token_kiddoworld.json",
         "oddlyperfect": "token_oddlyperfect.json",
+        "basitunfiltered": "token_basitunfiltered.json",
     }
     token_file = CHANNEL_TOKEN_MAP.get(channel, "token_kiddoworld.json")
     is_kids_channel = channel == "kiddoworld"

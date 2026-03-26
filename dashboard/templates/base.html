@@ -3,11 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
     <title>{% block title %}UpperCut{% endblock %} — Dashboard</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <nav class="sidebar">
+    <button class="mobile-menu-toggle" onclick="toggleMenu()" id="menu-btn">&#9776;</button>
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMenu()"></div>
+    <nav class="sidebar" id="sidebar">
         <div class="logo">
             <h1>UpperCut</h1>
             <span class="tagline">YouTube Automation</span>
@@ -40,5 +43,23 @@
     <main class="content">
         {% block content %}{% endblock %}
     </main>
+    <script>
+    function toggleMenu() {
+        document.getElementById('sidebar').classList.toggle('open');
+        document.getElementById('sidebar-overlay').classList.toggle('show');
+        var btn = document.getElementById('menu-btn');
+        btn.innerHTML = document.getElementById('sidebar').classList.contains('open') ? '&#10005;' : '&#9776;';
+    }
+    // Close menu when clicking a nav link on mobile
+    document.querySelectorAll('.nav-links a, .nav-create').forEach(function(link) {
+        link.addEventListener('click', function() {
+            if (window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.remove('open');
+                document.getElementById('sidebar-overlay').classList.remove('show');
+                document.getElementById('menu-btn').innerHTML = '&#9776;';
+            }
+        });
+    });
+    </script>
 </body>
 </html>

@@ -24,7 +24,14 @@
                 <input type="radio" name="upload-channel" value="oddlyperfect" id="channel-oddlyperfect" style="accent-color: var(--accent);">
                 <div>
                     <div style="font-weight: 600; font-size: 15px;">OddlyPerfect</div>
-                    <div style="font-size: 12px; color: var(--text-muted);">Viral Shorts channel</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Satisfying Builds & Transformations</div>
+                </div>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 10px; border: 2px solid var(--border); cursor: pointer; flex: 1; transition: all 0.2s;" id="channel-basitunfiltered-label">
+                <input type="radio" name="upload-channel" value="basitunfiltered" id="channel-basitunfiltered" style="accent-color: var(--accent);">
+                <div>
+                    <div style="font-weight: 600; font-size: 15px;">Basit Unfiltered</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Raw opinions & hot takes</div>
                 </div>
             </label>
         </div>
@@ -157,6 +164,35 @@
                 </div>
             </div>
         </div>
+
+        <!-- Basit Unfiltered-only fields -->
+        <div id="basitunfiltered-fields" style="display: none;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div class="scene-item">
+                    <label for="basit-category">Topic Category</label>
+                    <select id="basit-category" class="select-sm" style="width: 100%;">
+                        <option value="hottake">Hot Take / Opinion</option>
+                        <option value="life">Life Advice</option>
+                        <option value="motivation">Motivation</option>
+                        <option value="rant">Rant</option>
+                        <option value="story">Story Time</option>
+                        <option value="news">News / Current Affairs</option>
+                        <option value="sports">Sports / PSL</option>
+                        <option value="tech">Tech / Business</option>
+                        <option value="random">Random Thought</option>
+                    </select>
+                </div>
+                <div class="scene-item">
+                    <label for="basit-language">Language</label>
+                    <select id="basit-language" class="select-sm" style="width: 100%;">
+                        <option value="mixed">Urdu + English Mix</option>
+                        <option value="urdu">Urdu Only</option>
+                        <option value="english">English Only</option>
+                        <option value="hindi">Hindi/Urdu</option>
+                    </select>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Section 2b: Thumbnail -->
@@ -256,35 +292,53 @@
 
     document.querySelectorAll('input[name="upload-channel"]').forEach(function(radio) {
         radio.addEventListener('change', function() {
-            const isOddly = this.value === 'oddlyperfect';
-            document.getElementById('channel-kiddoworld-label').style.borderColor = !isOddly ? 'var(--accent)' : 'var(--border)';
-            document.getElementById('channel-oddlyperfect-label').style.borderColor = isOddly ? 'var(--accent)' : 'var(--border)';
+            const ch = this.value;
+            const isOddly = ch === 'oddlyperfect';
+            const isBasit = ch === 'basitunfiltered';
+            const isKiddo = ch === 'kiddoworld';
 
-            // OddlyPerfect = Shorts only
+            // Update border colors
+            document.getElementById('channel-kiddoworld-label').style.borderColor = isKiddo ? 'var(--accent)' : 'var(--border)';
+            document.getElementById('channel-oddlyperfect-label').style.borderColor = isOddly ? 'var(--accent)' : 'var(--border)';
+            document.getElementById('channel-basitunfiltered-label').style.borderColor = isBasit ? 'var(--accent)' : 'var(--border)';
+
             const formatSection = document.getElementById('format-toggle-section');
             const shortLabel = document.getElementById('create-short-label');
             const shortCheckbox = document.getElementById('create-short');
             const kiddoFields = document.getElementById('kiddoworld-fields');
             const oddlyFields = document.getElementById('oddlyperfect-fields');
+            const basitFields = document.getElementById('basitunfiltered-fields');
+
+            // Hide all channel-specific fields first
+            kiddoFields.style.display = 'none';
+            oddlyFields.style.display = 'none';
+            basitFields.style.display = 'none';
+
             if (isOddly) {
-                // Force Short format, hide format selector + kids fields
                 document.getElementById('format-short').checked = true;
                 document.getElementById('format-long').checked = false;
                 formatSection.style.display = 'none';
                 shortLabel.style.display = 'none';
                 shortCheckbox.checked = false;
-                kiddoFields.style.display = 'none';
                 oddlyFields.style.display = 'block';
                 document.getElementById('format-long-label').style.borderColor = 'var(--border)';
                 document.getElementById('format-short-label').style.borderColor = 'var(--accent)';
-                // Update placeholder
-                document.getElementById('video-title').placeholder = 'e.g. Satisfying Pool Manufacturing Process';
-                document.getElementById('video-description').placeholder = 'What makes this video satisfying or interesting?';
+                document.getElementById('video-title').placeholder = 'e.g. Abandoned Castle Restored to Glory';
+                document.getElementById('video-description').placeholder = 'What gets transformed? Describe the before and after.';
+            } else if (isBasit) {
+                document.getElementById('format-short').checked = true;
+                document.getElementById('format-long').checked = false;
+                formatSection.style.display = 'none';
+                shortLabel.style.display = 'none';
+                shortCheckbox.checked = false;
+                basitFields.style.display = 'block';
+                document.getElementById('format-long-label').style.borderColor = 'var(--border)';
+                document.getElementById('format-short-label').style.borderColor = 'var(--accent)';
+                document.getElementById('video-title').placeholder = 'e.g. PSL mein kya ho raha hai?';
+                document.getElementById('video-description').placeholder = 'Kis topic pe baat kar rahe ho? 2-3 lines mein batao.';
             } else {
-                // KiddoWorld = show format selector + kids fields
                 formatSection.style.display = 'block';
                 kiddoFields.style.display = 'block';
-                oddlyFields.style.display = 'none';
                 const fmt = getVideoFormat();
                 if (fmt === 'long') {
                     shortLabel.style.display = 'flex';
@@ -566,8 +620,9 @@
 
     // ── Save Draft ──
     window.saveDraft = async function() {
-        if (!uploadedVideoId) {
-            showStatus('Upload a video first before saving draft.', 'error');
+        const title = document.getElementById('video-title').value;
+        if (!title) {
+            showStatus('Enter a title before saving draft.', 'error');
             return;
         }
         showStatus('Saving draft...', 'info', true);
@@ -576,19 +631,21 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    video_id: uploadedVideoId,
-                    title: document.getElementById('video-title').value,
+                    video_id: uploadedVideoId || null,
+                    channel: getSelectedChannel(),
+                    title: title,
                     description: document.getElementById('video-description').value,
-                    playlist: document.getElementById('playlist-select').value,
+                    playlist: document.getElementById('playlist-select') ? document.getElementById('playlist-select').value : '',
                     format: getVideoFormat(),
-                    yt_title: document.getElementById('yt-title').value || '',
-                    yt_description: document.getElementById('yt-description').value || '',
-                    yt_tags: document.getElementById('yt-tags').value || '',
+                    yt_title: document.getElementById('yt-title') ? document.getElementById('yt-title').value : '',
+                    yt_description: document.getElementById('yt-description') ? document.getElementById('yt-description').value : '',
+                    yt_tags: document.getElementById('yt-tags') ? document.getElementById('yt-tags').value : '',
+                    video_path: uploadedFilePath || '',
                 })
             });
             const data = await resp.json();
             if (!resp.ok) throw new Error(data.error || 'Save failed');
-            showStatus('Draft saved! You can find it in the <a href="/drafts" style="color: var(--accent); font-weight: 700;">Drafts</a> page.', 'success');
+            showStatus('Draft saved! Go to <a href="/drafts" style="color: var(--accent); font-weight: 700;">Drafts</a> page.', 'success');
         } catch (err) {
             showStatus('Save error: ' + err.message, 'error');
         }
